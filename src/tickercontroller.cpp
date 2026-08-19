@@ -1,8 +1,9 @@
 #include "tickercontroller.h"
 
-#include <SailfishApp.h>
+#include <sailfishapp.h>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -10,6 +11,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
+#include <QVariantHash>
 
 namespace {
 const char *WATCHLIST_FILE = "watchlist.json";
@@ -20,7 +22,7 @@ const int MAX_BACKOFF_MS = 30 * 60 * 1000;
 
 QString dataPath(const QString &fileName)
 {
-    return SailfishApp::appDataDir() + fileName;
+    return SailfishApp::pathTo(fileName).toLocalFile();
 }
 
 QString fmtPrice(double v, const QString &currency)
@@ -72,7 +74,10 @@ void TickerController::loadState()
         QJsonArray arr = QJsonDocument::fromJson(snap.readAll()).array();
         for (const QJsonValue &v : arr) {
             QJsonObject o = v.toObject();
-            QVariantMap m = o.toVariantHash();
+            QVariantHash h = o.toVariantHash();
+            QVariantMap m;
+            for (auto it = h.constBegin(); it != h.constEnd(); ++it)
+                m.insert(it.key(), it.value());
             byId.insert(o.value("symbol").toString(), m);
         }
     }
@@ -192,7 +197,7 @@ void TickerController::fetchNext()
         }
         s.pending = true;
         QUrl url(QStringLiteral("https://query1.finance.yahoo.com/v8/finance/chart/%1")
-                     .arg(QUrl::toPercentEncoding(s.id)));
+                      .arg(QString::fromLatin1(QUrl::toPercentEncoding(s.id))));
         QNetworkRequest req(url);
         req.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36");
         QNetworkReply *reply = m_nam->get(req);

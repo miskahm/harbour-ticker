@@ -3,6 +3,7 @@ build/
 .mb2/
 installroot/
 RPMS/
+dist/
 *.rpm
 
 # Generated
