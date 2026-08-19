@@ -1,0 +1,15 @@
+# Build
+build/
+.mb2/
+installroot/
+RPMS/
+*.rpm
+
+# Generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.o
+*.moc
+harbour-ticker_autogen/
