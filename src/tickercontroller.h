@@ -5,7 +5,6 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QVector>
-#include <QElapsedTimer>
 
 class QNetworkAccessManager;
 class QTimer;
