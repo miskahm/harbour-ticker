@@ -16,6 +16,7 @@ class TickerController : public QObject
     Q_PROPERTY(QString lastUpdated READ lastUpdated NOTIFY tickersChanged)
     Q_PROPERTY(bool refreshing READ refreshing NOTIFY refreshingChanged)
     Q_PROPERTY(int intervalMinutes READ intervalMinutes WRITE setIntervalMinutes NOTIFY intervalMinutesChanged)
+    Q_PROPERTY(int coverRows READ coverRows WRITE setCoverRows NOTIFY coverRowsChanged)
 
 public:
     explicit TickerController(QObject *parent = nullptr);
@@ -25,17 +26,20 @@ public:
     QString lastUpdated() const { return m_lastUpdated; }
     bool refreshing() const { return m_refreshing; }
     int intervalMinutes() const { return m_intervalMinutes; }
+    int coverRows() const { return m_coverRows; }
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void addSymbol(const QString &symbol);
     Q_INVOKABLE void removeSymbol(const QString &symbol);
     Q_INVOKABLE void moveSymbol(int from, int to);
     Q_INVOKABLE void setIntervalMinutes(int minutes);
+    Q_INVOKABLE void setCoverRows(int rows);
 
 signals:
     void tickersChanged();
     void refreshingChanged();
     void intervalMinutesChanged();
+    void coverRowsChanged();
 
 private slots:
     void pollDue();
@@ -66,6 +70,7 @@ private:
     int m_cursor = 0;
     bool m_refreshing = false;
     int m_intervalMinutes = 5;
+    int m_coverRows = 5;
     QString m_lastUpdated;
     QVariantList m_tickers;
 };

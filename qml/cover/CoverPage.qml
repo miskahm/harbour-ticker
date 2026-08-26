@@ -1,17 +1,10 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
-import harbour.ticker 1.0
 
 CoverBackground {
     id: cover
 
-    TickerController {
-        id: ticker
-    }
-
     CoverActionList {
-        id: coverActions
-
         CoverAction {
             iconSource: "image://theme/icon-m-refresh"
             onTriggered: ticker.refresh()
@@ -19,77 +12,78 @@ CoverBackground {
     }
 
     Column {
-        anchors.fill: parent
-        spacing: 0
-
-        Row {
-            x: Theme.horizontalPageMargin
-            width: parent.width - 2 * Theme.horizontalPageMargin
-            height: Theme.itemSizeSmall
-
-            Label {
-                text: "Harbour Ticker"
-                font.pixelSize: Theme.fontSizeMedium
-                color: Theme.primaryColor
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Item { width: 1 }
-
-            Label {
-                visible: ticker.refreshing
-                text: qsTr("updating…")
-                color: Theme.secondaryColor
-                font.pixelSize: Theme.fontSizeExtraSmall
-                anchors.verticalCenter: parent.verticalCenter
-            }
+        id: content
+        anchors {
+            top: parent.top
+            left: parent.left
+            right: parent.right
+            margins: Theme.paddingLarge
         }
+
+        Label {
+            text: qsTr("Ticker")
+            font.pixelSize: Theme.fontSizeMedium
+            font.family: Theme.fontFamilyHeading
+            color: Theme.primaryColor
+        }
+
+        Item { width: 1; height: Theme.paddingMedium }
 
         Repeater {
             model: ticker.tickers
-            Row {
-                x: Theme.horizontalPageMargin
-                width: parent.width - 2 * Theme.horizontalPageMargin
-                height: Theme.itemSizeSmall
 
-                Label {
-                    text: modelData.symbol
-                    font.pixelSize: Theme.fontSizeMedium
-                    color: Theme.primaryColor
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 90
-                    elide: Text.ElideRight
-                }
+            Item {
+                readonly property bool shown: index < ticker.coverRows
 
-                Item { width: 1 }
+                width: content.width
+                height: shown ? Theme.itemSizeSmall : 0
+                visible: shown
 
-                Label {
-                    text: modelData.price !== undefined && modelData.price.length > 0 ? modelData.price : "—"
-                    font.pixelSize: Theme.fontSizeMedium
-                    color: Theme.primaryColor
-                    anchors.verticalCenter: parent.verticalCenter
-                }
+                Row {
+                    anchors.fill: parent
+                    spacing: Theme.paddingSmall
 
-                Item { width: 1 }
+                    Label {
+                        width: parent.width - priceLabel.width - pctLabel.width - 2 * parent.spacing
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.symbol
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: Theme.primaryColor
+                        elide: Text.ElideRight
+                    }
 
-                Label {
-                    visible: modelData.pct !== undefined && modelData.pct.length > 0
-                    text: modelData.pct
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: modelData.up ? "#4caf50" : "#f44336"
-                    anchors.verticalCenter: parent.verticalCenter
+                    Label {
+                        id: priceLabel
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.price !== undefined && modelData.price.length > 0
+                              ? modelData.price.split(" ")[0] : "—"
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: Theme.primaryColor
+                    }
+
+                    Label {
+                        id: pctLabel
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: modelData.pct !== undefined && modelData.pct.length > 0
+                        text: modelData.pct
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: modelData.up ? "#4caf50" : "#f44336"
+                    }
                 }
             }
         }
+    }
 
-        Item { width: 1; height: 1 }
-
-        Label {
-            visible: ticker.lastUpdated.length > 0
-            x: Theme.horizontalPageMargin
-            text: qsTr("updated %1").arg(ticker.lastUpdated)
-            color: Theme.secondaryColor
-            font.pixelSize: Theme.fontSizeExtraSmall
+    Label {
+        visible: ticker.lastUpdated.length > 0
+        anchors {
+            left: parent.left
+            bottom: parent.bottom
+            leftMargin: Theme.paddingLarge
+            bottomMargin: Theme.paddingMedium
         }
+        text: ticker.lastUpdated.replace("T", " ")
+        color: Theme.secondaryColor
+        font.pixelSize: Theme.fontSizeExtraSmall
     }
 }

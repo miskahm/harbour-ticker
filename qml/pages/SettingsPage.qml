@@ -1,13 +1,8 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
-import harbour.ticker 1.0
 
 Page {
     id: page
-
-    TickerController {
-        id: ticker
-    }
 
     SilicaFlickable {
         anchors.fill: parent
@@ -22,11 +17,18 @@ Page {
                 title: qsTr("Settings")
             }
 
-            ItemDelegate {
-                height: Theme.itemSizeMedium
-                text: qsTr("Refresh interval")
+            ValueButton {
+                width: parent.width
+                label: qsTr("Refresh interval")
                 description: ticker.intervalMinutes + qsTr(" min")
                 onClicked: intervalDialog.open()
+            }
+
+            ValueButton {
+                width: parent.width
+                label: qsTr("Cover rows")
+                description: ticker.coverRows + qsTr(" visible tickers")
+                onClicked: rowsDialog.open()
             }
 
             SilicaHorizontalDivider { topVisible: true }
@@ -55,28 +57,64 @@ Page {
 
     Dialog {
         id: intervalDialog
-        title: qsTr("Refresh interval")
-        modality: Qt.Modal
-        standardButtons: Dialog.Save | Dialog.Cancel
-        onAccepted: ticker.setIntervalMinutes(intervalField.text.trim().toInt())
+        canAccept: !isNaN(parseInt(intervalField.text))
+        onAccepted: ticker.setIntervalMinutes(parseInt(intervalField.text))
 
         Column {
             x: Theme.horizontalPageMargin
             width: parent.width - 2 * Theme.horizontalPageMargin
             spacing: Theme.paddingSmall
 
+            DialogHeader {
+                title: qsTr("Refresh interval")
+            }
+
             TextField {
                 id: intervalField
                 width: parent.width
                 text: String(ticker.intervalMinutes)
                 inputMethodHints: Qt.ImhDigitsOnly
-                onAccepted: intervalDialog.accept()
+                EnterKey.iconSource: "image://theme/icon-m-enter-accept"
+                EnterKey.onClicked: intervalDialog.accept()
             }
 
             Label {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 text: qsTr("1–30 minutes.")
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+            }
+        }
+    }
+
+    Dialog {
+        id: rowsDialog
+        canAccept: !isNaN(parseInt(rowsField.text)) && parseInt(rowsField.text) >= 1 && parseInt(rowsField.text) <= 10
+        onAccepted: ticker.setCoverRows(parseInt(rowsField.text))
+
+        Column {
+            x: Theme.horizontalPageMargin
+            width: parent.width - 2 * Theme.horizontalPageMargin
+            spacing: Theme.paddingSmall
+
+            DialogHeader {
+                title: qsTr("Cover rows")
+            }
+
+            TextField {
+                id: rowsField
+                width: parent.width
+                text: String(ticker.coverRows)
+                inputMethodHints: Qt.ImhDigitsOnly
+                EnterKey.iconSource: "image://theme/icon-m-enter-accept"
+                EnterKey.onClicked: rowsDialog.accept()
+            }
+
+            Label {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("How many tickers to show on the home screen cover (1–10).")
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeExtraSmall
             }

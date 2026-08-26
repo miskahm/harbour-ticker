@@ -1,6 +1,5 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
-import harbour.ticker 1.0
 
 Page {
     id: page
@@ -30,7 +29,7 @@ Page {
             spacing: 0
 
             PageHeader {
-                title: "Harbour Ticker"
+                title: qsTr("Ticker")
             }
 
             Label {
@@ -43,29 +42,64 @@ Page {
 
             Repeater {
                 model: ticker.tickers
-                SilicaHorizontalDivider { topVisible: true }
-                ItemDelegate {
-                    height: Theme.itemSizeMedium
-                    text: modelData.symbol
-                    subtext: modelData.name !== undefined && modelData.name.length > 0 ? modelData.name : ""
-                    description: modelData.price
-                    icon.sourceIcon: "qtc"
 
-                    Label {
-                        id: pctLabel
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.rightMargin: Theme.paddingMedium
-                        visible: modelData.pct !== undefined && modelData.pct.length > 0
-                        text: modelData.pct
-                        color: modelData.up ? "#4caf50" : "#f44336"
-                        font.pixelSize: Theme.fontSizeSmall
-                    }
+                ListItem {
+                    id: rowItem
+                    contentHeight: Theme.itemSizeMedium
 
-                    Menu {
+                    menu: ContextMenu {
                         MenuItem {
                             text: qsTr("Remove")
-                            onClicked: ticker.removeSymbol(modelData.symbol)
+                            onClicked: rowItem.remorseDelete(function () {
+                                ticker.removeSymbol(modelData.symbol)
+                            })
+                        }
+                    }
+
+                    Column {
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
+                            leftMargin: Theme.horizontalPageMargin
+                            rightMargin: Theme.horizontalPageMargin
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: Theme.paddingSmall
+
+                            Label {
+                                width: parent.width - priceLabel.width - pctLabel.width - 2 * parent.spacing
+                                text: modelData.symbol
+                                font.pixelSize: Theme.fontSizeMedium
+                                color: rowItem.highlighted ? Theme.highlightColor : Theme.primaryColor
+                                elide: Text.ElideRight
+                            }
+
+                            Label {
+                                id: priceLabel
+                                text: modelData.price !== undefined && modelData.price.length > 0 ? modelData.price : "—"
+                                font.pixelSize: Theme.fontSizeMedium
+                                color: Theme.primaryColor
+                            }
+
+                            Label {
+                                id: pctLabel
+                                visible: modelData.pct !== undefined && modelData.pct.length > 0
+                                text: modelData.pct
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: modelData.up ? "#4caf50" : "#f44336"
+                            }
+                        }
+
+                        Label {
+                            width: parent.width
+                            visible: modelData.name !== undefined && modelData.name.length > 0 && modelData.name !== modelData.symbol
+                            text: modelData.name !== undefined ? modelData.name : ""
+                            font.pixelSize: Theme.fontSizeExtraSmall
+                            color: Theme.secondaryColor
+                            elide: Text.ElideRight
                         }
                     }
                 }
@@ -84,9 +118,7 @@ Page {
 
     Dialog {
         id: addDialog
-        title: qsTr("Add symbol")
-        modality: Qt.Modal
-        standardButtons: Dialog.Cancel
+        canAccept: symbolField.text.length > 0
         onAccepted: ticker.addSymbol(symbolField.text)
 
         Column {
@@ -94,12 +126,17 @@ Page {
             width: parent.width - 2 * Theme.horizontalPageMargin
             spacing: Theme.paddingSmall
 
+            DialogHeader {
+                title: qsTr("Add symbol")
+            }
+
             TextField {
                 id: symbolField
                 width: parent.width
                 placeholderText: "AAPL, ^GSPC, EURUSD=X"
                 inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
-                onAccepted: addDialog.accept()
+                EnterKey.iconSource: "image://theme/icon-m-enter-accept"
+                EnterKey.onClicked: addDialog.accept()
             }
 
             Label {

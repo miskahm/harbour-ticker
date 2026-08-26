@@ -1,6 +1,5 @@
 #include "tickercontroller.h"
 
-#include <sailfishapp.h>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -10,6 +9,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QVariantHash>
 
@@ -17,12 +17,15 @@ namespace {
 const char *WATCHLIST_FILE = "watchlist.json";
 const char *SNAPSHOT_FILE = "snapshot.json";
 const int MAX_SYMBOLS = 20;
+const int MIN_COVER_ROWS = 1;
+const int MAX_COVER_ROWS = 10;
 const int BASE_BACKOFF_MS = 60 * 1000;
 const int MAX_BACKOFF_MS = 30 * 60 * 1000;
 
 QString dataPath(const QString &fileName)
 {
-    return SailfishApp::pathTo(fileName).toLocalFile();
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+            + QLatin1Char('/') + fileName;
 }
 
 QString fmtPrice(double v, const QString &currency)
@@ -38,9 +41,12 @@ QString fmtPrice(double v, const QString &currency)
 TickerController::TickerController(QObject *parent)
     : QObject(parent)
 {
+    qInfo() << "controller: constructing, dataPath=" << dataPath(WATCHLIST_FILE);
+    QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
     m_nam = new QNetworkAccessManager(this);
 
     loadState();
+    qInfo() << "controller: loaded" << m_symbols.size() << "symbols";
 
     m_timer = new QTimer(this);
     m_timer->setInterval(30 * 1000);
@@ -61,7 +67,14 @@ void TickerController::loadState()
     QFile watch(dataPath(WATCHLIST_FILE));
     QStringList ids;
     if (watch.open(QIODevice::ReadOnly)) {
-        QJsonArray arr = QJsonDocument::fromJson(watch.readAll()).array();
+        const QJsonDocument doc = QJsonDocument::fromJson(watch.readAll());
+        const QJsonArray arr = doc.isObject()
+                ? doc.object().value("symbols").toArray()
+                : doc.array();
+        if (doc.isObject()) {
+            m_intervalMinutes = qBound(1, doc.object().value("intervalMinutes").toInt(m_intervalMinutes), 30);
+            m_coverRows = qBound(MIN_COVER_ROWS, doc.object().value("coverRows").toInt(m_coverRows), MAX_COVER_ROWS);
+        }
         for (const QJsonValue &v : arr)
             ids << v.toString();
     } else {
@@ -89,6 +102,8 @@ void TickerController::loadState()
         s.data = byId.value(id).toMap();
         m_symbols.append(s);
     }
+
+    persistWatchlist();
 }
 
 void TickerController::persistWatchlist() const
@@ -96,9 +111,15 @@ void TickerController::persistWatchlist() const
     QJsonArray arr;
     for (const Symbol &s : m_symbols)
         arr.append(s.id);
+    QJsonObject root;
+    root.insert("intervalMinutes", m_intervalMinutes);
+    root.insert("coverRows", m_coverRows);
+    root.insert("symbols", arr);
     QFile f(dataPath(WATCHLIST_FILE));
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        f.write(QJsonDocument(arr).toJson());
+        f.write(QJsonDocument(root).toJson());
+    else
+        qWarning() << "controller: FAILED to open watchlist file" << dataPath(WATCHLIST_FILE);
 }
 
 void TickerController::refresh()
@@ -156,7 +177,18 @@ void TickerController::setIntervalMinutes(int minutes)
     if (minutes == m_intervalMinutes)
         return;
     m_intervalMinutes = minutes;
+    persistWatchlist();
     emit intervalMinutesChanged();
+}
+
+void TickerController::setCoverRows(int rows)
+{
+    rows = qBound(MIN_COVER_ROWS, rows, MAX_COVER_ROWS);
+    if (rows == m_coverRows)
+        return;
+    m_coverRows = rows;
+    persistWatchlist();
+    emit coverRowsChanged();
 }
 
 void TickerController::pollDue()
@@ -177,10 +209,6 @@ void TickerController::tick()
         return;
     for (Symbol &s : m_symbols)
         s.pending = false;
-    const bool anyMissing = std::any_of(m_symbols.begin(), m_symbols.end(),
-                                        [](const Symbol &s) { return s.data.value("price").toString().isEmpty(); });
-    if (!anyMissing)
-        return;
     m_refreshing = true;
     emit refreshingChanged();
     m_cursor = 0;
@@ -196,14 +224,16 @@ void TickerController::fetchNext()
             continue;
         }
         s.pending = true;
+        const QString symbol = s.id;
+        qInfo() << "controller: fetching" << symbol;
         QUrl url(QStringLiteral("https://query1.finance.yahoo.com/v8/finance/chart/%1")
                       .arg(QString::fromLatin1(QUrl::toPercentEncoding(s.id))));
         QNetworkRequest req(url);
         req.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36");
         QNetworkReply *reply = m_nam->get(req);
-        connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        connect(reply, &QNetworkReply::finished, this, [this, reply, symbol]() {
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            onFetchFinished(m_symbols[m_cursor].id, status, reply->readAll());
+            onFetchFinished(symbol, status, reply->readAll());
             reply->deleteLater();
         });
         ++m_cursor;
@@ -214,6 +244,8 @@ void TickerController::fetchNext()
 
 void TickerController::onFetchFinished(const QString &symbol, int httpStatus, const QByteArray &payload)
 {
+    qInfo() << "controller: fetch finished" << symbol << "http=" << httpStatus
+            << "bytes=" << payload.size();
     for (Symbol &s : m_symbols) {
         if (s.id.compare(symbol, Qt::CaseInsensitive) != 0)
             continue;
@@ -293,7 +325,9 @@ QVariantMap TickerController::parseMeta(const QByteArray &payload) const
 void TickerController::finishTick()
 {
     m_lastUpdated = QDateTime::currentDateTime().toString(Qt::ISODate);
-    QFile f(dataPath(SNAPSHOT_FILE));
+    const QString snapPath = dataPath(SNAPSHOT_FILE);
+    qInfo() << "controller: finishTick, writing snapshot to" << snapPath;
+    QFile f(snapPath);
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         QJsonArray arr;
         for (const Symbol &s : m_symbols) {
@@ -302,6 +336,9 @@ void TickerController::finishTick()
             arr.append(QJsonDocument::fromVariant(s.data).object());
         }
         f.write(QJsonDocument(arr).toJson());
+        qInfo() << "controller: snapshot written OK";
+    } else {
+        qWarning() << "controller: FAILED to open snapshot file" << snapPath;
     }
     m_refreshing = false;
     emit refreshingChanged();

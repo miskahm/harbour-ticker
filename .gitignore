@@ -14,3 +14,7 @@ Makefile
 *.o
 *.moc
 harbour-ticker_autogen/
+# In-tree rpm build leftovers
+/harbour-ticker
+documentation.list
+install_manifest.txt

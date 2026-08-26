@@ -1,34 +1,63 @@
 # harbour-ticker
 
-Native SailfishOS app whose **cover** shows live stock and index tickers.
-Data from Yahoo Finance (keyless `v8/finance/chart`), editable watchlist,
-configurable refresh interval (1–30 min, default 5).
+Native SailfishOS app whose **cover** shows live stock and index tickers on the
+Home area.  Data from Yahoo Finance (keyless `v8/finance/chart` endpoint),
+editable watchlist, configurable refresh interval and cover row count.
 
 Default watchlist: `^GSPC`, `^NDX`, `^DJI`, `AAPL`, `MSFT`.
 
+## Settings
+
+| Setting | Range | Default | Notes |
+|---------|-------|---------|-------|
+| Refresh interval | 1–30 min | 5 | How often Yahoo is polled while the app runs or its cover is active |
+| Cover rows | 1–10 | 5 | How many tickers appear on the Home screen cover |
+
+Both persist in `watchlist.json` and survive restarts.
+
 ## Build
 
-Requires the SailfishOS platform SDK docker image and `mb2`:
+Requires the **coderus/sailfishos-platform-sdk** podman image.
+
+> **Important:** `mb2` (sb2) can only see bind-mounts at `/home/mersdk/project`
+> inside the container.  `$PWD` maps there.
 
 ```sh
-podman pull coderus/sailfishos-platform-sdk
-# mb2 (installed on host or via pip) pointed at the container:
-mb2 build
+# Restore container-root ownership for host access
+podman run --rm -u root -v "$PWD":/home/mersdk/project \
+  coderus/sailfishos-platform-sdk \
+  bash -c "chown -R 100000:100000 /home/mersdk/project && rm -rf /home/mersdk/project/.mb2 /home/mersdk/project/RPMS"
+
+# Build as the container user
+podman run --rm -v "$PWD":/home/mersdk/project -w /home/mersdk/project \
+  coderus/sailfishos-platform-sdk \
+  bash -c "mb2 -t SailfishOS-5.2.0.15-aarch64 build-init && mb2 -t SailfishOS-5.2.0.15-aarch64 build"
+
+# Restore host ownership
+podman run --rm -u root -v "$PWD":/home/mersdk/project \
+  coderus/sailfishos-platform-sdk \
+  chown -R 0:0 /home/mersdk/project
 ```
 
-The RPM lands in `.mb2/build/` as `harbour-ticker-*.rpm`.
+The RPM lands in `dist/` as `harbour-ticker-*.rpm`.
 
-## Install
+## Deploy
 
 ```sh
-sfdk deploy -e harbour-ticker-0.1.0-1.aarch64.rpm
+ssh user@device-ip "pkill -f bin/harbour-ticker" 2>/dev/null
+scp dist/harbour-ticker-*.rpm user@device-ip:/tmp/
+printf 'password\n' | ssh -tt user@device-ip \
+  "devel-su rpm -Uvh /tmp/harbour-ticker-*.rpm"
 ```
 
-or copy the RPM to the phone and install with an RPM manager.
+Replace `password` with the `devel-su` password for the device.
 
 ## Notes
 
-- Cover rows update while the app is resident (SailfishOS cover semantics).
-- Watchlist and last snapshot persist under the app data dir; edits survive restarts.
+- **Cover layout:** proportional column widths, currency suffix stripped on cover
+  for density, timestamps anchored to the cover bottom edge.
+- **Persistence:** `watchlist.json` (JSON object with `intervalMinutes`,
+  `coverRows`, `symbols[]`) and `snapshot.json` live under
+  `~/.local/share/harbour-ticker/harbour-ticker/`.
 - 429/401 responses trigger exponential backoff per symbol.
 - Distribution target: OpenRepos.
