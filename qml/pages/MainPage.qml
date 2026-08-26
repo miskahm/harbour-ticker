@@ -122,8 +122,12 @@ Page {
 
     Dialog {
         id: addDialog
-        canAccept: symbolField.text.length > 0
-        onAccepted: ticker.addSymbol(symbolField.text)
+        canAccept: symbolField.text.trim().length > 0
+        onAccepted: {
+            ticker.addSymbol(symbolField.text)
+            symbolField.text = ""
+        }
+        onRejected: symbolField.text = ""
 
         Column {
             x: Theme.horizontalPageMargin

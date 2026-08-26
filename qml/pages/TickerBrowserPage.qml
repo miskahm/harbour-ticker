@@ -73,8 +73,8 @@ Page {
         selected = copy
     }
 
-    function filtered() {
-        var f = searchField.text.toLowerCase().trim()
+    function filtered(filterText) {
+        var f = (filterText !== undefined ? filterText : searchField.text).toLowerCase().trim()
         if (f.length === 0) return curated
         return curated.filter(function (e) {
             return e.sym.toLowerCase().indexOf(f) >= 0
@@ -91,7 +91,7 @@ Page {
             MenuItem {
                 text: qsTr("Select all filtered")
                 onClicked: {
-                    var list = filtered()
+                    var list = filtered(searchField.text)
                     var copy = selected.slice(0)
                     for (var i = 0; i < list.length; i++) {
                         var s = list[i].sym
@@ -131,20 +131,21 @@ Page {
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeExtraSmall
                 text: selected.length > 0
-                      ? qsTr("%n selected — tap Add below", "", selected.length)
-                      : qsTr("Tap to select multiple. Already in watchlist is dimmed.")
+                      ? qsTr("%n selected — scroll down and tap Add", "", selected.length)
+                      : qsTr("Tap rows to select multiple, then Add at bottom. Dimmed = already in watchlist.")
             }
 
             Item { width: 1; height: Theme.paddingSmall }
 
             Repeater {
-                model: filtered()
+                model: filtered(searchField.text)
 
                 ListItem {
                     id: row
                     contentHeight: Theme.itemSizeMedium
                     enabled: !isInWatchlist(modelData.sym)
                     opacity: enabled ? 1.0 : 0.45
+                    highlighted: isSelected(modelData.sym)
 
                     onClicked: toggle(modelData.sym)
 

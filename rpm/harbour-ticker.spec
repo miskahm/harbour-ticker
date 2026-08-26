@@ -1,7 +1,7 @@
 Name:       harbour-ticker
 Summary:    Live stock and index tickers on the cover
 Version:    0.1.0
-Release:    13
+Release:    14
 License:    GPL-3.0-only
 URL:        https://github.com/miskahm/harbour-ticker
 Source0:    %{name}-%{version}.tar.bz2
@@ -15,9 +15,9 @@ BuildRequires:  pkgconfig(Qt5Quick)
 BuildRequires:  pkgconfig(Qt5Network)
 
 %description
-Native SailfishOS app whose cover shows live stock and index tickers
-(^GSPC, ^NDX, ^DJI, AAPL, MSFT by default). Data from Yahoo Finance
-(keyless), editable watchlist, configurable refresh interval.
+Native SailfishOS app whose cover shows live stock and index tickers.
+No default tickers — add via Browse (45 curated) or free-text. Data
+from Yahoo Finance (keyless), configurable refresh and cover layout.
 
 %prep
 %setup -q -n %{name}-%{version}
