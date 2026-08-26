@@ -3,6 +3,6 @@ Type=Application
 X-Nemo-Application-Type=silica-qt5
 Icon=harbour-ticker
 Exec=harbour-ticker
-Name=Ticker
+Name=ticker
 Comment=Live stock and index tickers on the cover
 Categories=Office;Finance;
