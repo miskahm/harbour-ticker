@@ -320,11 +320,9 @@ bool TickerController::isNordicSymbol(const QString &symbol) const
 
 bool TickerController::needsNordic() const
 {
-    for (const Symbol &s : m_symbols) {
-        if (isNordicSymbol(s.id))
-            return true;
-    }
-    return false;
+    // No-key CDN is small and cacheable — fetch once per tick if any watchlist exists
+    // so any Yahoo-miss (e.g. First North plain symbols like EASOR) can fallback
+    return !m_symbols.isEmpty();
 }
 
 void TickerController::tick()
@@ -532,20 +530,17 @@ void TickerController::onFetchFinished(const QString &symbol, int httpStatus, co
             }
         }
         if (!yahooOk) {
-            // try Nordic fallback for Helsinki/Stockholm etc.
-            if (isNordicSymbol(symbol)) {
-                QVariantMap nordic = nordicLookup(symbol);
-                if (!nordic.isEmpty()) {
-                    // ensure symbol field matches requested id (preserve user's ticker)
-                    nordic["symbol"] = s.id;
-                    s.data = nordic;
-                    s.failures = 0;
-                    s.retryAfterMs = 0;
-                    qInfo() << "controller: Nordic fallback ok for" << symbol << "price" << nordic.value("price").toString();
-                    yahooOk = true;
-                } else {
-                    qInfo() << "controller: Nordic fallback missed for" << symbol << "cache size" << m_nordicCache.size();
-                }
+            // try Nordic fallback for any symbol (no-key CDN covers Helsinki/Stockholm/Copenhagen)
+            QVariantMap nordic = nordicLookup(symbol);
+            if (!nordic.isEmpty()) {
+                nordic["symbol"] = s.id;
+                s.data = nordic;
+                s.failures = 0;
+                s.retryAfterMs = 0;
+                qInfo() << "controller: Nordic fallback ok for" << symbol << "price" << nordic.value("price").toString();
+                yahooOk = true;
+            } else if (!m_nordicCache.isEmpty()) {
+                qInfo() << "controller: Nordic fallback missed for" << symbol << "cache size" << m_nordicCache.size();
             }
         }
         if (!yahooOk) {
