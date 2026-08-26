@@ -74,6 +74,7 @@ private slots:
     void onFetchFinished(const QString &symbol, int httpStatus, const QByteArray &payload);
     void onNordicFinished(int httpStatus, const QByteArray &payload);
     void onFinnhubFinished(const QString &symbol, int httpStatus, const QByteArray &payload);
+    void onYahooVariantFinished(const QString &original, const QString &variant, int httpStatus, const QByteArray &payload);
 
 private:
     struct Symbol {
@@ -88,6 +89,7 @@ private:
     void fetchNext();
     void fetchNordicSnapshot();
     void fetchFinnhubQuote(const QString &symbol);
+    void fetchYahooVariant(const QString &original, const QString &variant);
     void finishTick();
     QVariantMap parseMeta(const QByteArray &payload) const;
     QVariantMap parseNordicStock(const QJsonObject &obj) const;

@@ -563,6 +563,67 @@ void TickerController::fetchFinnhubQuote(const QString &symbol)
     });
 }
 
+void TickerController::fetchYahooVariant(const QString &original, const QString &variant)
+{
+    QUrl url(QStringLiteral("https://query1.finance.yahoo.com/v8/finance/chart/%1")
+                  .arg(QString::fromLatin1(QUrl::toPercentEncoding(variant))));
+    qInfo() << "controller: fetching Yahoo variant" << original << "->" << variant;
+    QNetworkRequest req(url);
+    req.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36");
+    QNetworkReply *reply = m_nam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, original, variant]() {
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        onYahooVariantFinished(original, variant, status, reply->readAll());
+        reply->deleteLater();
+    });
+}
+
+void TickerController::onYahooVariantFinished(const QString &original, const QString &variant, int httpStatus, const QByteArray &payload)
+{
+    qInfo() << "controller: Yahoo variant finished" << original << "->" << variant << "http=" << httpStatus << payload.left(200);
+    for (Symbol &s : m_symbols) {
+        if (s.id.compare(original, Qt::CaseInsensitive)!=0)
+            continue;
+        s.pending = false;
+        if (httpStatus == 200) {
+            QVariantMap meta = parseMeta(payload);
+            if (!meta.isEmpty()) {
+                // keep original symbol id for display, but use variant data
+                meta["symbol"] = s.id;
+                s.data = meta;
+                s.failures = 0;
+                s.retryAfterMs = 0;
+                qInfo() << "controller: Yahoo variant ok" << original << "->" << variant;
+                break;
+            }
+        }
+        // variant miss — fall through to Nordic/Finnhub chain
+        bool isNordic = shouldUseNordic();
+        if (isNordic) {
+            QVariantMap nordic = nordicLookup(original);
+            if (!nordic.isEmpty()) {
+                nordic["symbol"] = s.id;
+                s.data = nordic;
+                s.failures = 0;
+                s.retryAfterMs = 0;
+                qInfo() << "controller: Nordic fallback after variant miss ok for" << original;
+                break;
+            }
+        }
+        if (shouldUseFinnhub()) {
+            qInfo() << "controller: Yahoo variant miss for" << original << "trying Finnhub";
+            s.pending = true;
+            fetchFinnhubQuote(original);
+            return;
+        }
+        s.failures++;
+        const int backoff = qMin(BASE_BACKOFF_MS * (1 << qMin(s.failures, 3)), MAX_BACKOFF_MS);
+        s.retryAfterMs = QDateTime::currentMSecsSinceEpoch() + backoff;
+        break;
+    }
+    fetchNext();
+}
+
 QVariantMap TickerController::parseFinnhubQuote(const QByteArray &payload, const QString &symbol) const
 {
     QJsonObject o = QJsonDocument::fromJson(payload).object();
@@ -722,6 +783,14 @@ void TickerController::onFetchFinished(const QString &symbol, int httpStatus, co
                 yahooOk = true;
                 qInfo() << "controller: Yahoo ok for" << symbol;
             }
+        }
+        if (!yahooOk && shouldUseYahoo() && !symbol.contains('.') && !symbol.startsWith("^")) {
+            // Plain Helsinki First North symbol like EASOR → try EASOR.HE on Yahoo (free, covers Helsinki including First North)
+            QString variant = symbol + ".HE";
+            qInfo() << "controller: Yahoo miss for plain" << symbol << "trying variant" << variant;
+            s.pending = true;
+            fetchYahooVariant(symbol, variant);
+            return;
         }
         if (!yahooOk && shouldUseNordic()) {
             // try Nordic fallback for any symbol (no-key CDN covers Helsinki/Stockholm/Copenhagen)
