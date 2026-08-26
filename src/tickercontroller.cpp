@@ -714,8 +714,8 @@ void TickerController::fetchNext()
     while (m_cursor < m_symbols.size()) {
         Symbol &s = m_symbols[m_cursor];
         if (s.data.value("price").toString().isEmpty() && s.retryAfterMs > QDateTime::currentMSecsSinceEpoch()) {
-            // Plain Helsinki symbols like EASOR can be retried as EASOR.HE even in backoff
-            bool plainRetry = !s.id.contains('.') && !s.id.startsWith("^") && shouldUseYahoo();
+            // Plain Helsinki symbols like EASOR can be retried as EASOR.HE even in backoff — unless .HE already in watchlist (avoid duplicate alias)
+            bool plainRetry = !s.id.contains('.') && !s.id.startsWith("^") && shouldUseYahoo() && !containsSymbol(s.id + ".HE");
             if (!plainRetry) {
                 qInfo() << "controller: skipping" << s.id << "in backoff until" << s.retryAfterMs;
                 ++m_cursor;
@@ -793,10 +793,14 @@ void TickerController::onFetchFinished(const QString &symbol, int httpStatus, co
         if (!yahooOk && shouldUseYahoo() && !symbol.contains('.') && !symbol.startsWith("^")) {
             // Plain Helsinki First North symbol like EASOR → try EASOR.HE on Yahoo (free, covers Helsinki including First North)
             QString variant = symbol + ".HE";
-            qInfo() << "controller: Yahoo miss for plain" << symbol << "trying variant" << variant;
-            s.pending = true;
-            fetchYahooVariant(symbol, variant);
-            return;
+            if (containsSymbol(variant)) {
+                qInfo() << "controller: Yahoo miss for plain" << symbol << "but variant" << variant << "already in watchlist — skip alias to avoid duplicate";
+            } else {
+                qInfo() << "controller: Yahoo miss for plain" << symbol << "trying variant" << variant;
+                s.pending = true;
+                fetchYahooVariant(symbol, variant);
+                return;
+            }
         }
         if (!yahooOk && shouldUseNordic()) {
             // try Nordic fallback for any symbol (no-key CDN covers Helsinki/Stockholm/Copenhagen)
