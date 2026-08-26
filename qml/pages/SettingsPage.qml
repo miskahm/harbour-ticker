@@ -67,6 +67,52 @@ Page {
             }
 
             SectionHeader {
+                text: qsTr("Data provider")
+            }
+
+            ComboBox {
+                width: parent.width
+                label: qsTr("Provider")
+                value: ticker.providerModeName()
+                currentIndex: ticker.providerMode
+                menu: ContextMenu {
+                    MenuItem { text: qsTr("Auto (Yahoo → Nordic → Finnhub)"); onClicked: ticker.setProviderMode(0) }
+                    MenuItem { text: qsTr("Yahoo only"); onClicked: ticker.setProviderMode(1) }
+                    MenuItem { text: qsTr("Nordic only (no key)"); onClicked: ticker.setProviderMode(2) }
+                    MenuItem { text: qsTr("Finnhub only"); onClicked: ticker.setProviderMode(3) }
+                }
+            }
+
+            TextField {
+                id: finnhubField
+                width: parent.width
+                label: qsTr("Finnhub API key")
+                placeholderText: qsTr("Paste key from finnhub.io (free)")
+                text: ticker.finnhubApiKey
+                inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
+                EnterKey.iconSource: "image://theme/icon-m-enter-accept"
+                EnterKey.onClicked: {
+                    ticker.setFinnhubApiKey(text)
+                    focus = false
+                }
+                onActiveFocusChanged: {
+                    if (!activeFocus && text !== ticker.finnhubApiKey)
+                        ticker.setFinnhubApiKey(text)
+                }
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                wrapMode: Text.WordWrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                text: qsTr("Get a free key at finnhub.io → Docs. Auto tries Yahoo, then Nordic CDN, then Finnhub if key is set. See https://finnhub.io/docs/api")
+                linkColor: Theme.highlightColor
+                onLinkActivated: Qt.openUrlExternally(link)
+            }
+
+            SectionHeader {
                 text: qsTr("Ideas for next")
             }
 
@@ -89,7 +135,7 @@ Page {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.WordWrap
-                text: qsTr("Data from Yahoo Finance. Prices update on the refresh interval while the app is running or its cover is active.")
+                text: qsTr("Data: Yahoo (keyless) → Nordic CDN (no key) → Finnhub (if key set). Prices update on the refresh interval while the app is running or its cover is active.")
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeSmall
             }
@@ -104,7 +150,7 @@ Page {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.WordWrap
-                text: "harbour-ticker 0.1.0\nData: Yahoo Finance (unofficial, keyless)"
+                text: "harbour-ticker 0.1.0\nData: Yahoo (unofficial) + Nordic CDN + Finnhub.io"
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeExtraSmall
             }

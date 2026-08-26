@@ -82,6 +82,10 @@ void TickerController::loadState()
                 m_showCoverPrice = doc.object().value("showCoverPrice").toBool(m_showCoverPrice);
             if (doc.object().contains("coverScale"))
                 m_coverScale = qBound(0.7, doc.object().value("coverScale").toDouble(m_coverScale), 1.6);
+            if (doc.object().contains("finnhubApiKey"))
+                m_finnhubApiKey = doc.object().value("finnhubApiKey").toString();
+            if (doc.object().contains("providerMode"))
+                m_providerMode = qBound(0, doc.object().value("providerMode").toInt(m_providerMode), 3);
         }
         for (const QJsonValue &v : arr)
             ids << v.toString();
@@ -128,6 +132,8 @@ void TickerController::persistWatchlist() const
     root.insert("showCoverCurrency", m_showCoverCurrency);
     root.insert("showCoverPrice", m_showCoverPrice);
     root.insert("coverScale", m_coverScale);
+    root.insert("finnhubApiKey", m_finnhubApiKey);
+    root.insert("providerMode", m_providerMode);
     root.insert("symbols", arr);
     QFile f(dataPath(WATCHLIST_FILE));
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
@@ -299,6 +305,54 @@ void TickerController::setCoverScale(double v)
     emit coverScaleChanged();
 }
 
+void TickerController::setFinnhubApiKey(const QString &key)
+{
+    const QString k = key.trimmed();
+    if (k == m_finnhubApiKey)
+        return;
+    m_finnhubApiKey = k;
+    persistWatchlist();
+    emit finnhubApiKeyChanged();
+    qInfo() << "controller: finnhub key" << (m_finnhubApiKey.isEmpty() ? "cleared" : "set");
+}
+
+void TickerController::setProviderMode(int mode)
+{
+    mode = qBound(0, mode, 3);
+    if (mode == m_providerMode)
+        return;
+    m_providerMode = mode;
+    persistWatchlist();
+    emit providerModeChanged();
+    qInfo() << "controller: providerMode" << m_providerMode << providerModeName();
+}
+
+QString TickerController::providerModeName() const
+{
+    switch (m_providerMode) {
+    case 0: return QStringLiteral("Auto");
+    case 1: return QStringLiteral("Yahoo");
+    case 2: return QStringLiteral("Nordic");
+    case 3: return QStringLiteral("Finnhub");
+    default: return QStringLiteral("Auto");
+    }
+}
+
+bool TickerController::shouldUseYahoo() const
+{
+    return m_providerMode == 0 || m_providerMode == 1;
+}
+
+bool TickerController::shouldUseNordic() const
+{
+    return m_providerMode == 0 || m_providerMode == 2;
+}
+
+bool TickerController::shouldUseFinnhub() const
+{
+    return (m_providerMode == 0 || m_providerMode == 3) && !m_finnhubApiKey.isEmpty();
+}
+
 void TickerController::pollDue()
 {
     const qint64 dueMs = qint64(m_intervalMinutes) * 60 * 1000 - 12000;
@@ -335,7 +389,7 @@ void TickerController::tick()
     emit refreshingChanged();
     m_cursor = 0;
     m_nordicCache.clear();
-    if (needsNordic()) {
+    if (shouldUseNordic() && needsNordic()) {
         fetchNordicSnapshot();
     } else {
         fetchNext();
@@ -482,6 +536,118 @@ QVariantMap TickerController::nordicLookup(const QString &symbol) const
     return {};
 }
 
+void TickerController::fetchFinnhubQuote(const QString &symbol)
+{
+    if (m_finnhubApiKey.isEmpty()) {
+        qWarning() << "controller: Finnhub key empty, cannot fetch" << symbol;
+        // mark failure and continue
+        for (Symbol &s : m_symbols) {
+            if (s.id.compare(symbol, Qt::CaseInsensitive)==0) {
+                s.failures++;
+                break;
+            }
+        }
+        fetchNext();
+        return;
+    }
+    QUrl url(QStringLiteral("https://finnhub.io/api/v1/quote?symbol=%1&token=%2")
+                  .arg(QString::fromLatin1(QUrl::toPercentEncoding(symbol)), m_finnhubApiKey));
+    qInfo() << "controller: fetching Finnhub" << symbol;
+    QNetworkRequest req(url);
+    req.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36");
+    QNetworkReply *reply = m_nam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, symbol]() {
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        onFinnhubFinished(symbol, status, reply->readAll());
+        reply->deleteLater();
+    });
+}
+
+QVariantMap TickerController::parseFinnhubQuote(const QByteArray &payload, const QString &symbol) const
+{
+    QJsonObject o = QJsonDocument::fromJson(payload).object();
+    // Finnhub quote: {c: current, d: change, dp: percent, h, l, o, pc, t}
+    double price = o.value("c").toDouble(-1);
+    if (price <= 0)
+        return {};
+    double change = o.value("d").toDouble(0);
+    double pct = o.value("dp").toDouble(0);
+    double prev = o.value("pc").toDouble(0);
+    // pct may be already percent, change absolute
+    QVariantMap m;
+    m["symbol"] = symbol.toUpper();
+    m["name"] = symbol.toUpper();
+    // Finnhub doesn't give currency directly; assume USD for US, EUR for .HE etc.
+    QString currency;
+    if (symbol.toUpper().endsWith(".HE") || symbol.toUpper().endsWith(".ST") || symbol.toUpper().endsWith(".CO") || symbol.toUpper().endsWith(".OL"))
+        currency = QStringLiteral("EUR");
+    else if (symbol.contains("-USD") || symbol.endsWith("=X"))
+        currency = QString();
+    else
+        currency = QStringLiteral("USD");
+    // try to keep currency empty for FX/crypto
+    if (symbol.endsWith("=X") || symbol.contains("-USD"))
+        currency = QString();
+    m["currency"] = currency;
+    m["price"] = fmtPrice(price, currency);
+    m["priceValue"] = price;
+    if (prev <= 0 && pct != 0 && change != 0) {
+        prev = price - change;
+    }
+    if (pct != 0 || change != 0) {
+        QLocale locale(QLocale::English);
+        const QString sign = change >= 0 ? "+" : "";
+        // if pct is 0 but change known, compute pct
+        if (pct == 0 && prev > 0)
+            pct = change / prev * 100.0;
+        if (change == 0 && pct != 0)
+            change = price * pct / 100.0;
+        m["change"] = sign + locale.toString(change, 'f', 2);
+        m["pct"] = sign + locale.toString(pct, 'f', 2) + "%";
+        m["up"] = change >= 0;
+    } else {
+        m["change"] = QString();
+        m["pct"] = QString();
+        m["up"] = true;
+    }
+    return m;
+}
+
+void TickerController::onFinnhubFinished(const QString &symbol, int httpStatus, const QByteArray &payload)
+{
+    qInfo() << "controller: Finnhub finished" << symbol << "http=" << httpStatus << "bytes=" << payload.size() << payload.left(200);
+    for (Symbol &s : m_symbols) {
+        if (s.id.compare(symbol, Qt::CaseInsensitive)!=0)
+            continue;
+        s.pending = false;
+        if (httpStatus == 200) {
+            QVariantMap m = parseFinnhubQuote(payload, symbol);
+            if (!m.isEmpty() && m.value("priceValue").toDouble(0) > 0) {
+                // Finnhub returns 0 price for invalid symbols, treat as miss
+                s.data = m;
+                s.failures = 0;
+                s.retryAfterMs = 0;
+                qInfo() << "controller: Finnhub ok for" << symbol << m.value("price").toString();
+            } else {
+                qInfo() << "controller: Finnhub empty for" << symbol;
+                s.failures++;
+                const int backoff = qMin(BASE_BACKOFF_MS * (1 << qMin(s.failures, 3)), MAX_BACKOFF_MS);
+                s.retryAfterMs = QDateTime::currentMSecsSinceEpoch() + backoff;
+            }
+        } else if (httpStatus == 429) {
+            s.failures++;
+            const int backoff = qMin(BASE_BACKOFF_MS * (1 << qMin(s.failures, 5)), MAX_BACKOFF_MS);
+            s.retryAfterMs = QDateTime::currentMSecsSinceEpoch() + backoff;
+        } else {
+            s.failures++;
+            const int backoff = qMin(BASE_BACKOFF_MS * (1 << qMin(s.failures, 3)), MAX_BACKOFF_MS);
+            s.retryAfterMs = QDateTime::currentMSecsSinceEpoch() + backoff;
+        }
+        break;
+    }
+    fetchNext();
+}
+
 void TickerController::fetchNext()
 {
     while (m_cursor < m_symbols.size()) {
@@ -493,7 +659,35 @@ void TickerController::fetchNext()
         }
         s.pending = true;
         const QString symbol = s.id;
-        qInfo() << "controller: fetching" << symbol << "cursor" << m_cursor << "of" << m_symbols.size();
+        // ProviderMode handling: if Yahoo disabled, try Nordic/Finnhub directly
+        if (!shouldUseYahoo()) {
+            if (shouldUseNordic()) {
+                QVariantMap nordic = nordicLookup(symbol);
+                if (!nordic.isEmpty()) {
+                    qInfo() << "controller: Nordic direct hit for" << symbol;
+                    nordic["symbol"] = s.id;
+                    s.data = nordic;
+                    s.failures = 0;
+                    s.retryAfterMs = 0;
+                    s.pending = false;
+                    ++m_cursor;
+                    continue;
+                }
+            }
+            if (shouldUseFinnhub()) {
+                qInfo() << "controller: fetching Finnhub direct for" << symbol << "cursor" << m_cursor << "of" << m_symbols.size();
+                ++m_cursor;
+                fetchFinnhubQuote(symbol);
+                return;
+            } else {
+                qInfo() << "controller: no provider for" << symbol << "mode" << providerModeName();
+                s.pending = false;
+                s.failures++;
+                ++m_cursor;
+                continue;
+            }
+        }
+        qInfo() << "controller: fetching Yahoo" << symbol << "cursor" << m_cursor << "of" << m_symbols.size() << "mode" << providerModeName();
         QUrl url(QStringLiteral("https://query1.finance.yahoo.com/v8/finance/chart/%1")
                       .arg(QString::fromLatin1(QUrl::toPercentEncoding(s.id))));
         QNetworkRequest req(url);
@@ -529,7 +723,7 @@ void TickerController::onFetchFinished(const QString &symbol, int httpStatus, co
                 qInfo() << "controller: Yahoo ok for" << symbol;
             }
         }
-        if (!yahooOk) {
+        if (!yahooOk && shouldUseNordic()) {
             // try Nordic fallback for any symbol (no-key CDN covers Helsinki/Stockholm/Copenhagen)
             QVariantMap nordic = nordicLookup(symbol);
             if (!nordic.isEmpty()) {
@@ -542,6 +736,12 @@ void TickerController::onFetchFinished(const QString &symbol, int httpStatus, co
             } else if (!m_nordicCache.isEmpty()) {
                 qInfo() << "controller: Nordic fallback missed for" << symbol << "cache size" << m_nordicCache.size();
             }
+        }
+        if (!yahooOk && shouldUseFinnhub()) {
+            qInfo() << "controller: Yahoo+Nordic miss for" << symbol << "trying Finnhub";
+            s.pending = true;
+            fetchFinnhubQuote(symbol);
+            return;
         }
         if (!yahooOk) {
             if (httpStatus == 429 || httpStatus == 401) {

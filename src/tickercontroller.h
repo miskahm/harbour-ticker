@@ -21,6 +21,8 @@ class TickerController : public QObject
     Q_PROPERTY(bool showCoverCurrency READ showCoverCurrency WRITE setShowCoverCurrency NOTIFY showCoverCurrencyChanged)
     Q_PROPERTY(bool showCoverPrice READ showCoverPrice WRITE setShowCoverPrice NOTIFY showCoverPriceChanged)
     Q_PROPERTY(double coverScale READ coverScale WRITE setCoverScale NOTIFY coverScaleChanged)
+    Q_PROPERTY(QString finnhubApiKey READ finnhubApiKey WRITE setFinnhubApiKey NOTIFY finnhubApiKeyChanged)
+    Q_PROPERTY(int providerMode READ providerMode WRITE setProviderMode NOTIFY providerModeChanged)
 
 public:
     explicit TickerController(QObject *parent = nullptr);
@@ -35,6 +37,8 @@ public:
     bool showCoverCurrency() const { return m_showCoverCurrency; }
     bool showCoverPrice() const { return m_showCoverPrice; }
     double coverScale() const { return m_coverScale; }
+    QString finnhubApiKey() const { return m_finnhubApiKey; }
+    int providerMode() const { return m_providerMode; }
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void addSymbol(const QString &symbol);
@@ -48,7 +52,10 @@ public:
     Q_INVOKABLE void setShowCoverCurrency(bool v);
     Q_INVOKABLE void setShowCoverPrice(bool v);
     Q_INVOKABLE void setCoverScale(double v);
+    Q_INVOKABLE void setFinnhubApiKey(const QString &key);
+    Q_INVOKABLE void setProviderMode(int mode);
     Q_INVOKABLE bool containsSymbol(const QString &symbol) const;
+    Q_INVOKABLE QString providerModeName() const;
 
 signals:
     void tickersChanged();
@@ -59,11 +66,14 @@ signals:
     void showCoverCurrencyChanged();
     void showCoverPriceChanged();
     void coverScaleChanged();
+    void finnhubApiKeyChanged();
+    void providerModeChanged();
 
 private slots:
     void pollDue();
     void onFetchFinished(const QString &symbol, int httpStatus, const QByteArray &payload);
     void onNordicFinished(int httpStatus, const QByteArray &payload);
+    void onFinnhubFinished(const QString &symbol, int httpStatus, const QByteArray &payload);
 
 private:
     struct Symbol {
@@ -77,12 +87,17 @@ private:
     void tick();
     void fetchNext();
     void fetchNordicSnapshot();
+    void fetchFinnhubQuote(const QString &symbol);
     void finishTick();
     QVariantMap parseMeta(const QByteArray &payload) const;
     QVariantMap parseNordicStock(const QJsonObject &obj) const;
+    QVariantMap parseFinnhubQuote(const QByteArray &payload, const QString &symbol) const;
     QVariantMap nordicLookup(const QString &symbol) const;
     bool isNordicSymbol(const QString &symbol) const;
     bool needsNordic() const;
+    bool shouldUseYahoo() const;
+    bool shouldUseNordic() const;
+    bool shouldUseFinnhub() const;
     QVariantList buildRows() const;
     void persistWatchlist() const;
     void loadState();
@@ -104,6 +119,8 @@ private:
     QString m_lastUpdated;
     QVariantList m_tickers;
     QMap<QString, QVariantMap> m_nordicCache;
+    QString m_finnhubApiKey;
+    int m_providerMode = 0; // 0=Auto, 1=Yahoo, 2=Nordic, 3=Finnhub
 };
 
 #endif
