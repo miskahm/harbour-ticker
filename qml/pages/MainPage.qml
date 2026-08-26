@@ -33,7 +33,7 @@ Page {
             spacing: 0
 
             PageHeader {
-                title: qsTr("ticker")
+                title: qsTr("Ticker")
             }
 
             Label {
