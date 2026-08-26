@@ -1,7 +1,7 @@
 Name:       harbour-ticker
 Summary:    Live stock and index tickers on the cover
 Version:    0.1.0
-Release:    23
+Release:    24
 License:    GPL-3.0-only
 URL:        https://github.com/miskahm/harbour-ticker
 Source0:    %{name}-%{version}.tar.bz2
@@ -34,8 +34,8 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_bindir}/%{name}
 %{_datadir}/%{name}/qml
-%{_datadir}/icons/86x86/%{name}.png
-%{_datadir}/icons/108x108/%{name}.png
-%{_datadir}/icons/128x128/%{name}.png
-%{_datadir}/icons/172x172/%{name}.png
+%{_datadir}/icons/hicolor/86x86/apps/%{name}.png
+%{_datadir}/icons/hicolor/108x108/apps/%{name}.png
+%{_datadir}/icons/hicolor/128x128/apps/%{name}.png
+%{_datadir}/icons/hicolor/172x172/apps/%{name}.png
 %{_datadir}/applications/%{name}.desktop
