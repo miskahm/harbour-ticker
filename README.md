@@ -12,8 +12,17 @@ Default watchlist: `^GSPC`, `^NDX`, `^DJI`, `AAPL`, `MSFT`.
 |---------|-------|---------|-------|
 | Refresh interval | 1–30 min | 5 | How often Yahoo is polled while the app runs or its cover is active |
 | Cover rows | 1–10 | 5 | How many tickers appear on the Home screen cover |
+| Show timestamp | on/off | on | Last updated time at bottom of cover |
+| Show currency | on/off | off | e.g. `USD` suffix next to price |
+| Show price | on/off | on | Off = % only, more room for symbols |
+| Cover scale | 70–160% | 100% | Row height + font size on cover (Slider, step 10%) |
 
-Both persist in `watchlist.json` and survive restarts.
+All persist in `watchlist.json` and survive restarts.
+
+## Watchlist
+
+- Pull-down **Add symbol** for free-text `AAPL`, `^GSPC`, `EURUSD=X`, `BTC-USD`.
+- Pull-down **Browse tickers** for a curated 45-symbol picker (indices, Tech, Helsinki .HE, ETFs, FX, Crypto, Commodities) with search + multi-select. Already in watchlist is dimmed.
 
 ## Build
 
@@ -54,10 +63,9 @@ Replace `password` with the `devel-su` password for the device.
 
 ## Notes
 
-- **Cover layout:** proportional column widths, currency suffix stripped on cover
-  for density, timestamps anchored to the cover bottom edge.
+- **Cover layout:** no header (freed for tickers), 30px × scale row height, `paddingSmall/Medium` margins — 10 rows fit; timestamp anchored bottom, currency toggle, price-only toggle, scale slider.
 - **Persistence:** `watchlist.json` (JSON object with `intervalMinutes`,
-  `coverRows`, `symbols[]`) and `snapshot.json` live under
+  `coverRows`, `showCoverTimestamp`, `showCoverCurrency`, `showCoverPrice`, `coverScale`, `symbols[]`) and `snapshot.json` live under
   `~/.local/share/harbour-ticker/harbour-ticker/`.
 - 429/401 responses trigger exponential backoff per symbol.
 - Distribution target: OpenRepos.

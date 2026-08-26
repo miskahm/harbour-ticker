@@ -17,6 +17,10 @@ class TickerController : public QObject
     Q_PROPERTY(bool refreshing READ refreshing NOTIFY refreshingChanged)
     Q_PROPERTY(int intervalMinutes READ intervalMinutes WRITE setIntervalMinutes NOTIFY intervalMinutesChanged)
     Q_PROPERTY(int coverRows READ coverRows WRITE setCoverRows NOTIFY coverRowsChanged)
+    Q_PROPERTY(bool showCoverTimestamp READ showCoverTimestamp WRITE setShowCoverTimestamp NOTIFY showCoverTimestampChanged)
+    Q_PROPERTY(bool showCoverCurrency READ showCoverCurrency WRITE setShowCoverCurrency NOTIFY showCoverCurrencyChanged)
+    Q_PROPERTY(bool showCoverPrice READ showCoverPrice WRITE setShowCoverPrice NOTIFY showCoverPriceChanged)
+    Q_PROPERTY(double coverScale READ coverScale WRITE setCoverScale NOTIFY coverScaleChanged)
 
 public:
     explicit TickerController(QObject *parent = nullptr);
@@ -27,19 +31,34 @@ public:
     bool refreshing() const { return m_refreshing; }
     int intervalMinutes() const { return m_intervalMinutes; }
     int coverRows() const { return m_coverRows; }
+    bool showCoverTimestamp() const { return m_showCoverTimestamp; }
+    bool showCoverCurrency() const { return m_showCoverCurrency; }
+    bool showCoverPrice() const { return m_showCoverPrice; }
+    double coverScale() const { return m_coverScale; }
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void addSymbol(const QString &symbol);
+    Q_INVOKABLE void addSymbols(const QStringList &symbols);
+    Q_INVOKABLE void addSymbolsVariant(const QVariantList &symbols);
     Q_INVOKABLE void removeSymbol(const QString &symbol);
     Q_INVOKABLE void moveSymbol(int from, int to);
     Q_INVOKABLE void setIntervalMinutes(int minutes);
     Q_INVOKABLE void setCoverRows(int rows);
+    Q_INVOKABLE void setShowCoverTimestamp(bool v);
+    Q_INVOKABLE void setShowCoverCurrency(bool v);
+    Q_INVOKABLE void setShowCoverPrice(bool v);
+    Q_INVOKABLE void setCoverScale(double v);
+    Q_INVOKABLE bool containsSymbol(const QString &symbol) const;
 
 signals:
     void tickersChanged();
     void refreshingChanged();
     void intervalMinutesChanged();
     void coverRowsChanged();
+    void showCoverTimestampChanged();
+    void showCoverCurrencyChanged();
+    void showCoverPriceChanged();
+    void coverScaleChanged();
 
 private slots:
     void pollDue();
@@ -71,6 +90,10 @@ private:
     bool m_refreshing = false;
     int m_intervalMinutes = 5;
     int m_coverRows = 5;
+    bool m_showCoverTimestamp = true;
+    bool m_showCoverCurrency = false;
+    bool m_showCoverPrice = true;
+    double m_coverScale = 1.0;
     QString m_lastUpdated;
     QVariantList m_tickers;
 };

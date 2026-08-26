@@ -1,7 +1,7 @@
 Name:       harbour-ticker
 Summary:    Live stock and index tickers on the cover
 Version:    0.1.0
-Release:    8
+Release:    12
 License:    GPL-3.0-only
 URL:        https://github.com/miskahm/harbour-ticker
 Source0:    %{name}-%{version}.tar.bz2

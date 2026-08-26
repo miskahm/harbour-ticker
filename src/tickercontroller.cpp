@@ -74,6 +74,14 @@ void TickerController::loadState()
         if (doc.isObject()) {
             m_intervalMinutes = qBound(1, doc.object().value("intervalMinutes").toInt(m_intervalMinutes), 30);
             m_coverRows = qBound(MIN_COVER_ROWS, doc.object().value("coverRows").toInt(m_coverRows), MAX_COVER_ROWS);
+            if (doc.object().contains("showCoverTimestamp"))
+                m_showCoverTimestamp = doc.object().value("showCoverTimestamp").toBool(m_showCoverTimestamp);
+            if (doc.object().contains("showCoverCurrency"))
+                m_showCoverCurrency = doc.object().value("showCoverCurrency").toBool(m_showCoverCurrency);
+            if (doc.object().contains("showCoverPrice"))
+                m_showCoverPrice = doc.object().value("showCoverPrice").toBool(m_showCoverPrice);
+            if (doc.object().contains("coverScale"))
+                m_coverScale = qBound(0.7, doc.object().value("coverScale").toDouble(m_coverScale), 1.6);
         }
         for (const QJsonValue &v : arr)
             ids << v.toString();
@@ -114,6 +122,10 @@ void TickerController::persistWatchlist() const
     QJsonObject root;
     root.insert("intervalMinutes", m_intervalMinutes);
     root.insert("coverRows", m_coverRows);
+    root.insert("showCoverTimestamp", m_showCoverTimestamp);
+    root.insert("showCoverCurrency", m_showCoverCurrency);
+    root.insert("showCoverPrice", m_showCoverPrice);
+    root.insert("coverScale", m_coverScale);
     root.insert("symbols", arr);
     QFile f(dataPath(WATCHLIST_FILE));
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
@@ -144,6 +156,52 @@ void TickerController::addSymbol(const QString &raw)
     persistWatchlist();
     emitChanged();
     refresh();
+}
+
+void TickerController::addSymbols(const QStringList &symbols)
+{
+    bool changed = false;
+    for (const QString &raw : symbols) {
+        const QString id = cleanSymbol(raw);
+        if (id.isEmpty())
+            continue;
+        bool exists = false;
+        for (const Symbol &s : m_symbols) {
+            if (s.id.compare(id, Qt::CaseInsensitive) == 0) { exists = true; break; }
+        }
+        if (exists)
+            continue;
+        if (m_symbols.size() >= MAX_SYMBOLS)
+            break;
+        Symbol s;
+        s.id = id;
+        m_symbols.append(s);
+        changed = true;
+    }
+    if (!changed)
+        return;
+    persistWatchlist();
+    emitChanged();
+    refresh();
+}
+
+void TickerController::addSymbolsVariant(const QVariantList &symbols)
+{
+    QStringList list;
+    list.reserve(symbols.size());
+    for (const QVariant &v : symbols)
+        list << v.toString();
+    addSymbols(list);
+}
+
+bool TickerController::containsSymbol(const QString &symbol) const
+{
+    const QString id = cleanSymbol(symbol);
+    for (const Symbol &s : m_symbols) {
+        if (s.id.compare(id, Qt::CaseInsensitive) == 0)
+            return true;
+    }
+    return false;
 }
 
 void TickerController::removeSymbol(const QString &symbol)
@@ -189,6 +247,43 @@ void TickerController::setCoverRows(int rows)
     m_coverRows = rows;
     persistWatchlist();
     emit coverRowsChanged();
+}
+
+void TickerController::setShowCoverTimestamp(bool v)
+{
+    if (v == m_showCoverTimestamp)
+        return;
+    m_showCoverTimestamp = v;
+    persistWatchlist();
+    emit showCoverTimestampChanged();
+}
+
+void TickerController::setShowCoverCurrency(bool v)
+{
+    if (v == m_showCoverCurrency)
+        return;
+    m_showCoverCurrency = v;
+    persistWatchlist();
+    emit showCoverCurrencyChanged();
+}
+
+void TickerController::setShowCoverPrice(bool v)
+{
+    if (v == m_showCoverPrice)
+        return;
+    m_showCoverPrice = v;
+    persistWatchlist();
+    emit showCoverPriceChanged();
+}
+
+void TickerController::setCoverScale(double v)
+{
+    v = qBound(0.7, v, 1.6);
+    if (qFuzzyCompare(v, m_coverScale))
+        return;
+    m_coverScale = v;
+    persistWatchlist();
+    emit coverScaleChanged();
 }
 
 void TickerController::pollDue()

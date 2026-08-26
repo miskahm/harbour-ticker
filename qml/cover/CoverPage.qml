@@ -17,26 +17,21 @@ CoverBackground {
             top: parent.top
             left: parent.left
             right: parent.right
-            margins: Theme.paddingLarge
+            topMargin: Theme.paddingSmall
+            leftMargin: Theme.paddingMedium
+            rightMargin: Theme.paddingMedium
         }
-
-        Label {
-            text: qsTr("Ticker")
-            font.pixelSize: Theme.fontSizeMedium
-            font.family: Theme.fontFamilyHeading
-            color: Theme.primaryColor
-        }
-
-        Item { width: 1; height: Theme.paddingMedium }
+        spacing: 1
 
         Repeater {
             model: ticker.tickers
 
             Item {
                 readonly property bool shown: index < ticker.coverRows
+                readonly property real s: ticker.coverScale
 
                 width: content.width
-                height: shown ? Theme.itemSizeSmall : 0
+                height: shown ? Math.round(30 * s) : 0
                 visible: shown
 
                 Row {
@@ -44,10 +39,15 @@ CoverBackground {
                     spacing: Theme.paddingSmall
 
                     Label {
-                        width: parent.width - priceLabel.width - pctLabel.width - 2 * parent.spacing
+                        width: {
+                            var w = parent.width - parent.spacing
+                            if (pctLabel.visible) w -= pctLabel.width + parent.spacing
+                            if (ticker.showCoverPrice && priceLabel.visible) w -= priceLabel.width + parent.spacing
+                            return w
+                        }
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.symbol
-                        font.pixelSize: Theme.fontSizeExtraSmall
+                        font.pixelSize: Math.round(Theme.fontSizeExtraSmall * s)
                         color: Theme.primaryColor
                         elide: Text.ElideRight
                     }
@@ -55,9 +55,14 @@ CoverBackground {
                     Label {
                         id: priceLabel
                         anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.price !== undefined && modelData.price.length > 0
-                              ? modelData.price.split(" ")[0] : "—"
-                        font.pixelSize: Theme.fontSizeExtraSmall
+                        visible: ticker.showCoverPrice
+                        width: visible ? implicitWidth : 0
+                        text: {
+                            if (modelData.price === undefined || modelData.price.length === 0) return "—"
+                            if (ticker.showCoverCurrency) return modelData.price
+                            return modelData.price.split(" ")[0]
+                        }
+                        font.pixelSize: Math.round(Theme.fontSizeExtraSmall * s)
                         color: Theme.primaryColor
                     }
 
@@ -65,8 +70,9 @@ CoverBackground {
                         id: pctLabel
                         anchors.verticalCenter: parent.verticalCenter
                         visible: modelData.pct !== undefined && modelData.pct.length > 0
+                        width: visible ? implicitWidth : 0
                         text: modelData.pct
-                        font.pixelSize: Theme.fontSizeExtraSmall
+                        font.pixelSize: Math.round(Theme.fontSizeExtraSmall * s)
                         color: modelData.up ? "#4caf50" : "#f44336"
                     }
                 }
@@ -75,15 +81,15 @@ CoverBackground {
     }
 
     Label {
-        visible: ticker.lastUpdated.length > 0
+        visible: ticker.showCoverTimestamp && ticker.lastUpdated.length > 0
         anchors {
             left: parent.left
             bottom: parent.bottom
-            leftMargin: Theme.paddingLarge
-            bottomMargin: Theme.paddingMedium
+            leftMargin: Theme.paddingMedium
+            bottomMargin: Theme.paddingSmall
         }
         text: ticker.lastUpdated.replace("T", " ")
         color: Theme.secondaryColor
-        font.pixelSize: Theme.fontSizeExtraSmall
+        font.pixelSize: Math.round(Theme.fontSizeTiny * ticker.coverScale)
     }
 }

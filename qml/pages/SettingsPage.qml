@@ -31,7 +31,59 @@ Page {
                 onClicked: rowsDialog.open()
             }
 
-            SilicaHorizontalDivider { topVisible: true }
+            TextSwitch {
+                text: qsTr("Show timestamp on cover")
+                description: qsTr("Last updated time at bottom of cover")
+                checked: ticker.showCoverTimestamp
+                onClicked: ticker.setShowCoverTimestamp(!ticker.showCoverTimestamp)
+            }
+
+            TextSwitch {
+                text: qsTr("Show currency on cover")
+                description: qsTr("e.g. USD/EUR suffix next to price")
+                checked: ticker.showCoverCurrency
+                onClicked: ticker.setShowCoverCurrency(!ticker.showCoverCurrency)
+            }
+
+            TextSwitch {
+                text: qsTr("Show price on cover")
+                description: qsTr("Off = % only, more room for symbols")
+                checked: ticker.showCoverPrice
+                onClicked: ticker.setShowCoverPrice(!ticker.showCoverPrice)
+            }
+
+            Slider {
+                width: parent.width
+                label: qsTr("Cover scale")
+                minimumValue: 0.7
+                maximumValue: 1.6
+                stepSize: 0.1
+                value: ticker.coverScale
+                valueText: Math.round(value * 100) + "%"
+                onValueChanged: {
+                    if (Math.abs(value - ticker.coverScale) > 0.01)
+                        ticker.setCoverScale(value)
+                }
+            }
+
+            SectionHeader {
+                text: qsTr("Ideas for next")
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                wrapMode: Text.WordWrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                text: qsTr("• Price alerts / thresholds\n• Change display: % / absolute / both\n• Sort: manual vs alphabetical\n• Decimals: 2 vs dynamic\n• Stale indicator after offline N min\n• Compact vs detailed cover density")
+            }
+
+            Separator {
+                width: parent.width
+                color: Theme.primaryColor
+                horizontalAlignment: Qt.AlignHCenter
+            }
 
             Label {
                 x: Theme.horizontalPageMargin
@@ -42,7 +94,11 @@ Page {
                 font.pixelSize: Theme.fontSizeSmall
             }
 
-            SilicaHorizontalDivider { topVisible: true }
+            Separator {
+                width: parent.width
+                color: Theme.primaryColor
+                horizontalAlignment: Qt.AlignHCenter
+            }
 
             Label {
                 x: Theme.horizontalPageMargin

@@ -10,6 +10,10 @@ Page {
 
         PullDownMenu {
             MenuItem {
+                text: qsTr("Browse tickers")
+                onClicked: pageStack.push(Qt.resolvedUrl("TickerBrowserPage.qml"))
+            }
+            MenuItem {
                 text: qsTr("Add symbol")
                 onClicked: addDialog.open()
             }
@@ -110,7 +114,7 @@ Page {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 horizontalAlignment: Text.AlignHCenter
-                text: qsTr("No symbols in watchlist.\nPull down to add one.")
+                text: qsTr("No symbols in watchlist.\nPull down to browse or add one.")
                 color: Theme.secondaryColor
             }
         }
