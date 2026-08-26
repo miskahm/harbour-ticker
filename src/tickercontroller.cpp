@@ -714,9 +714,15 @@ void TickerController::fetchNext()
     while (m_cursor < m_symbols.size()) {
         Symbol &s = m_symbols[m_cursor];
         if (s.data.value("price").toString().isEmpty() && s.retryAfterMs > QDateTime::currentMSecsSinceEpoch()) {
-            qInfo() << "controller: skipping" << s.id << "in backoff until" << s.retryAfterMs;
-            ++m_cursor;
-            continue;
+            // Plain Helsinki symbols like EASOR can be retried as EASOR.HE even in backoff
+            bool plainRetry = !s.id.contains('.') && !s.id.startsWith("^") && shouldUseYahoo();
+            if (!plainRetry) {
+                qInfo() << "controller: skipping" << s.id << "in backoff until" << s.retryAfterMs;
+                ++m_cursor;
+                continue;
+            } else {
+                qInfo() << "controller: backoff but plain" << s.id << "will retry as .HE variant";
+            }
         }
         s.pending = true;
         const QString symbol = s.id;
