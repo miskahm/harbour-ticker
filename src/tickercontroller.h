@@ -63,6 +63,7 @@ signals:
 private slots:
     void pollDue();
     void onFetchFinished(const QString &symbol, int httpStatus, const QByteArray &payload);
+    void onNordicFinished(int httpStatus, const QByteArray &payload);
 
 private:
     struct Symbol {
@@ -75,8 +76,13 @@ private:
 
     void tick();
     void fetchNext();
+    void fetchNordicSnapshot();
     void finishTick();
     QVariantMap parseMeta(const QByteArray &payload) const;
+    QVariantMap parseNordicStock(const QJsonObject &obj) const;
+    QVariantMap nordicLookup(const QString &symbol) const;
+    bool isNordicSymbol(const QString &symbol) const;
+    bool needsNordic() const;
     QVariantList buildRows() const;
     void persistWatchlist() const;
     void loadState();
@@ -88,6 +94,7 @@ private:
     QVector<Symbol> m_symbols;
     int m_cursor = 0;
     bool m_refreshing = false;
+    bool m_nordicFetching = false;
     int m_intervalMinutes = 5;
     int m_coverRows = 5;
     bool m_showCoverTimestamp = true;
@@ -96,6 +103,7 @@ private:
     double m_coverScale = 1.0;
     QString m_lastUpdated;
     QVariantList m_tickers;
+    QMap<QString, QVariantMap> m_nordicCache;
 };
 
 #endif

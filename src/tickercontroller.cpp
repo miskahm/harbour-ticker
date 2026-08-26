@@ -311,6 +311,22 @@ void TickerController::pollDue()
         tick();
 }
 
+bool TickerController::isNordicSymbol(const QString &symbol) const
+{
+    const QString s = symbol.toUpper();
+    return s.endsWith(".HE") || s.endsWith(".ST") || s.endsWith(".CO") || s.endsWith(".OL")
+            || s.startsWith("^OMX") || s.startsWith("^OMXH") || s.startsWith("^OMXS") || s.startsWith("^OMXC");
+}
+
+bool TickerController::needsNordic() const
+{
+    for (const Symbol &s : m_symbols) {
+        if (isNordicSymbol(s.id))
+            return true;
+    }
+    return false;
+}
+
 void TickerController::tick()
 {
     if (m_refreshing || m_symbols.isEmpty())
@@ -320,7 +336,152 @@ void TickerController::tick()
     m_refreshing = true;
     emit refreshingChanged();
     m_cursor = 0;
+    m_nordicCache.clear();
+    if (needsNordic()) {
+        fetchNordicSnapshot();
+    } else {
+        fetchNext();
+    }
+}
+
+void TickerController::fetchNordicSnapshot()
+{
+    if (m_nordicFetching)
+        return;
+    m_nordicFetching = true;
+    qInfo() << "controller: fetching Nordic snapshot cdn.opennordicstocks.net";
+    QUrl url(QStringLiteral("https://cdn.opennordicstocks.net/data/latest.json"));
+    QNetworkRequest req(url);
+    req.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36");
+    // short timeout via attribute if needed
+    QNetworkReply *reply = m_nam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        onNordicFinished(status, reply->readAll());
+        reply->deleteLater();
+    });
+}
+
+void TickerController::onNordicFinished(int httpStatus, const QByteArray &payload)
+{
+    m_nordicFetching = false;
+    qInfo() << "controller: Nordic snapshot finished http=" << httpStatus << "bytes=" << payload.size();
+    if (httpStatus == 200 && !payload.isEmpty()) {
+        QJsonDocument doc = QJsonDocument::fromJson(payload);
+        QJsonObject root = doc.object();
+        QJsonArray stocks = root.value("stocks").toArray();
+        // fallback if root itself is array
+        if (stocks.isEmpty() && doc.isArray())
+            stocks = doc.array();
+        // some CDN variants put stocks directly
+        if (stocks.isEmpty())
+            stocks = root.value("data").toArray();
+        qInfo() << "controller: Nordic stocks count" << stocks.size();
+        for (const QJsonValue &v : stocks) {
+            QJsonObject o = v.toObject();
+            QVariantMap m = parseNordicStock(o);
+            if (m.isEmpty())
+                continue;
+            const QString sym = m.value("symbol").toString().toUpper();
+            m_nordicCache.insert(sym, m);
+            // also insert stripped version without suffix for lookup
+            QString base = sym;
+            // store base without .HE/.ST etc if present? keep as is for now
+            // also store without suffix
+            int dot = base.lastIndexOf('.');
+            if (dot > 0) {
+                const QString stripped = base.left(dot);
+                if (!m_nordicCache.contains(stripped))
+                    m_nordicCache.insert(stripped, m);
+            }
+        }
+        qInfo() << "controller: Nordic cache populated" << m_nordicCache.size() << "entries";
+    } else {
+        qWarning() << "controller: Nordic snapshot failed, continuing with Yahoo only";
+    }
     fetchNext();
+}
+
+QVariantMap TickerController::parseNordicStock(const QJsonObject &obj) const
+{
+    // Expected: {symbol, name, price, market, currency, volume, change, changePercent, timestamp}
+    const QString symbol = obj.value("symbol").toString();
+    if (symbol.isEmpty())
+        return {};
+    double price = obj.value("price").toDouble(-1);
+    if (price <= 0)
+        price = obj.value("regularMarketPrice").toDouble(-1);
+    if (price <= 0)
+        return {};
+    const QString currency = obj.value("currency").toString();
+    const QString name = obj.value("name").toString(obj.value("longName").toString(symbol));
+    QVariantMap m;
+    m["symbol"] = symbol;
+    m["name"] = name.isEmpty() ? symbol : name;
+    m["price"] = fmtPrice(price, currency);
+    m["priceValue"] = price;
+    m["currency"] = currency;
+    double change = obj.value("change").toDouble(0);
+    // if change not present, try to compute from changePercent
+    double pct = obj.value("changePercent").toDouble(0);
+    if (obj.contains("changePercent") && pct == 0)
+        pct = obj.value("change_percent").toDouble(0);
+    // Yahoo style: change/changepct derived, but CDN may already have them
+    if (pct == 0 && obj.contains("changePct"))
+        pct = obj.value("changePct").toDouble(0);
+    if (change != 0 || pct != 0) {
+        QLocale locale(QLocale::English);
+        const QString sign = change >= 0 ? "+" : "";
+        // if change is 0 but pct non-zero, estimate change = price * pct/100
+        if (change == 0 && pct != 0)
+            change = price * pct / 100.0;
+        if (pct == 0 && change != 0)
+            pct = change / (price - change) * 100.0;
+        m["change"] = sign + locale.toString(change, 'f', 2);
+        m["pct"] = sign + locale.toString(pct, 'f', 2) + "%";
+        m["up"] = change >= 0;
+    } else {
+        m["change"] = QString();
+        m["pct"] = QString();
+        m["up"] = true;
+    }
+    // optional fields
+    long long vol = obj.value("volume").toVariant().toLongLong();
+    if (vol > 0) {
+        QLocale locale(QLocale::English);
+        m["volume"] = locale.toString(vol);
+    }
+    return m;
+}
+
+QVariantMap TickerController::nordicLookup(const QString &symbol) const
+{
+    const QString id = symbol.toUpper();
+    auto it = m_nordicCache.find(id);
+    if (it != m_nordicCache.end())
+        return it.value();
+    // try stripped .HE/.ST etc
+    int dot = id.lastIndexOf('.');
+    if (dot > 0) {
+        const QString stripped = id.left(dot);
+        it = m_nordicCache.find(stripped);
+        if (it != m_nordicCache.end())
+            return it.value();
+        // try with dash vs dot: Helsinki sometimes uses - vs .
+        const QString dash = stripped + "-" + id.mid(dot+1);
+        it = m_nordicCache.find(dash);
+        if (it != m_nordicCache.end())
+            return it.value();
+    }
+    // try with suffix added if plain
+    if (!id.contains('.')) {
+        for (auto suf : {".HE", ".ST", ".CO", ".OL"}) {
+            it = m_nordicCache.find(id + suf);
+            if (it != m_nordicCache.end())
+                return it.value();
+        }
+    }
+    return {};
 }
 
 void TickerController::fetchNext()
@@ -359,23 +520,51 @@ void TickerController::onFetchFinished(const QString &symbol, int httpStatus, co
         if (s.id.compare(symbol, Qt::CaseInsensitive) != 0)
             continue;
         s.pending = false;
+        bool yahooOk = false;
         if (httpStatus == 200) {
             QVariantMap meta = parseMeta(payload);
             if (!meta.isEmpty()) {
                 s.data = meta;
                 s.failures = 0;
                 s.retryAfterMs = 0;
-            } else {
+                yahooOk = true;
+                qInfo() << "controller: Yahoo ok for" << symbol;
+            }
+        }
+        if (!yahooOk) {
+            // try Nordic fallback for Helsinki/Stockholm etc.
+            if (isNordicSymbol(symbol)) {
+                QVariantMap nordic = nordicLookup(symbol);
+                if (!nordic.isEmpty()) {
+                    // ensure symbol field matches requested id (preserve user's ticker)
+                    nordic["symbol"] = s.id;
+                    s.data = nordic;
+                    s.failures = 0;
+                    s.retryAfterMs = 0;
+                    qInfo() << "controller: Nordic fallback ok for" << symbol << "price" << nordic.value("price").toString();
+                    yahooOk = true;
+                } else {
+                    qInfo() << "controller: Nordic fallback missed for" << symbol << "cache size" << m_nordicCache.size();
+                }
+            }
+        }
+        if (!yahooOk) {
+            if (httpStatus == 429 || httpStatus == 401) {
                 s.failures++;
                 const int backoff = qMin(BASE_BACKOFF_MS * (1 << qMin(s.failures, 5)), MAX_BACKOFF_MS);
                 s.retryAfterMs = QDateTime::currentMSecsSinceEpoch() + backoff;
+                qInfo() << "controller: backoff for" << symbol << "429/401";
+            } else if (httpStatus == 200) {
+                // Yahoo 200 but empty and Nordic missed
+                s.failures++;
+                const int backoff = qMin(BASE_BACKOFF_MS * (1 << qMin(s.failures, 5)), MAX_BACKOFF_MS);
+                s.retryAfterMs = QDateTime::currentMSecsSinceEpoch() + backoff;
+            } else {
+                s.failures++;
+                // for 404 etc, also backoff but shorter? keep same
+                const int backoff = qMin(BASE_BACKOFF_MS * (1 << qMin(s.failures, 3)), MAX_BACKOFF_MS);
+                s.retryAfterMs = QDateTime::currentMSecsSinceEpoch() + backoff;
             }
-        } else if (httpStatus == 429 || httpStatus == 401) {
-            s.failures++;
-            const int backoff = qMin(BASE_BACKOFF_MS * (1 << qMin(s.failures, 5)), MAX_BACKOFF_MS);
-            s.retryAfterMs = QDateTime::currentMSecsSinceEpoch() + backoff;
-        } else {
-            s.failures++;
         }
         break;
     }
