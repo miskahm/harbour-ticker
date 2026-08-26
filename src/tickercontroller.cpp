@@ -86,7 +86,9 @@ void TickerController::loadState()
         for (const QJsonValue &v : arr)
             ids << v.toString();
     } else {
-        ids = QStringList{ "^GSPC", "^NDX", "^DJI", "AAPL", "MSFT" };
+        // No default tickers — fresh install starts empty (user adds via Browse/Add)
+        ids = QStringList{};
+        qInfo() << "controller: no watchlist found, starting empty";
     }
 
     QFile snap(dataPath(SNAPSHOT_FILE));
@@ -142,20 +144,31 @@ void TickerController::refresh()
 void TickerController::addSymbol(const QString &raw)
 {
     const QString id = cleanSymbol(raw);
-    if (id.isEmpty())
+    qInfo() << "controller: addSymbol request" << raw << "->" << id;
+    if (id.isEmpty()) {
+        qWarning() << "controller: addSymbol rejected empty after clean";
         return;
-    for (const Symbol &s : m_symbols) {
-        if (s.id.compare(id, Qt::CaseInsensitive) == 0)
-            return;
     }
-    if (m_symbols.size() >= MAX_SYMBOLS)
+    for (const Symbol &s : m_symbols) {
+        if (s.id.compare(id, Qt::CaseInsensitive) == 0) {
+            qInfo() << "controller: addSymbol already exists" << id;
+            return;
+        }
+    }
+    if (m_symbols.size() >= MAX_SYMBOLS) {
+        qWarning() << "controller: addSymbol at max" << MAX_SYMBOLS;
         return;
+    }
     Symbol s;
     s.id = id;
     m_symbols.append(s);
+    qInfo() << "controller: addSymbol added" << id << "total" << m_symbols.size();
     persistWatchlist();
     emitChanged();
     refresh();
+    if (m_refreshing) {
+        qInfo() << "controller: addSymbol during refresh, will be picked up by ongoing fetch chain";
+    }
 }
 
 void TickerController::addSymbols(const QStringList &symbols)
@@ -315,12 +328,13 @@ void TickerController::fetchNext()
     while (m_cursor < m_symbols.size()) {
         Symbol &s = m_symbols[m_cursor];
         if (s.data.value("price").toString().isEmpty() && s.retryAfterMs > QDateTime::currentMSecsSinceEpoch()) {
+            qInfo() << "controller: skipping" << s.id << "in backoff until" << s.retryAfterMs;
             ++m_cursor;
             continue;
         }
         s.pending = true;
         const QString symbol = s.id;
-        qInfo() << "controller: fetching" << symbol;
+        qInfo() << "controller: fetching" << symbol << "cursor" << m_cursor << "of" << m_symbols.size();
         QUrl url(QStringLiteral("https://query1.finance.yahoo.com/v8/finance/chart/%1")
                       .arg(QString::fromLatin1(QUrl::toPercentEncoding(s.id))));
         QNetworkRequest req(url);
@@ -340,7 +354,7 @@ void TickerController::fetchNext()
 void TickerController::onFetchFinished(const QString &symbol, int httpStatus, const QByteArray &payload)
 {
     qInfo() << "controller: fetch finished" << symbol << "http=" << httpStatus
-            << "bytes=" << payload.size();
+            << "bytes=" << payload.size() << "payload head:" << payload.left(200);
     for (Symbol &s : m_symbols) {
         if (s.id.compare(symbol, Qt::CaseInsensitive) != 0)
             continue;

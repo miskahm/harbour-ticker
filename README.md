@@ -4,7 +4,7 @@
 
 A native Sailfish Silica app — the cover on the Home screen shows up to 10 tickers with price and day-change, updating every few minutes. Data from Yahoo Finance, no API key needed. Tap the cover action to refresh instantly.
 
-Default watchlist: `^GSPC` (S&P 500) · `^NDX` (Nasdaq 100) · `^DJI` (Dow) · `AAPL` · `MSFT`.
+No default tickers on fresh install — add your own via **Browse** (45 curated) or **Add symbol** (`AAPL`, `^GSPC`, `EURUSD=X`, `BTC-USD`).
 
 ## Features
 
