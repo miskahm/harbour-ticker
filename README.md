@@ -1,71 +1,50 @@
-# harbour-ticker
+# Harbour Ticker
 
-Native SailfishOS app whose **cover** shows live stock and index tickers on the
-Home area.  Data from Yahoo Finance (keyless `v8/finance/chart` endpoint),
-editable watchlist, configurable refresh interval and cover row count.
+**Live stock and index tickers on your Sailfish OS cover.**
 
-Default watchlist: `^GSPC`, `^NDX`, `^DJI`, `AAPL`, `MSFT`.
+A native Sailfish Silica app — the cover on the Home screen shows up to 10 tickers with price and day-change, updating every few minutes. Data from Yahoo Finance, no API key needed. Tap the cover action to refresh instantly.
+
+Default watchlist: `^GSPC` (S&P 500) · `^NDX` (Nasdaq 100) · `^DJI` (Dow) · `AAPL` · `MSFT`.
+
+## Features
+
+- **Cover first** — headerless dense layout (tight margins, scaled rows) fits 10 tickers; timestamp anchored at the bottom.
+- **Editable watchlist** — long-press to remove, add any Yahoo symbol (`AAPL`, `^GSPC`, `EURUSD=X`, `BTC-USD`).
+- **Browse picker** — curated 45 symbols (US/EU indices, Tech, Helsinki `.HE`, ETFs, FX, Crypto, Commodities) with search and multi-select.
+- **Live updates** — configurable refresh interval while the app is running or its cover is active; 429/401 backoff per symbol.
 
 ## Settings
 
-| Setting | Range | Default | Notes |
-|---------|-------|---------|-------|
-| Refresh interval | 1–30 min | 5 | How often Yahoo is polled while the app runs or its cover is active |
-| Cover rows | 1–10 | 5 | How many tickers appear on the Home screen cover |
-| Show timestamp | on/off | on | Last updated time at bottom of cover |
-| Show currency | on/off | off | e.g. `USD` suffix next to price |
-| Show price | on/off | on | Off = % only, more room for symbols |
-| Cover scale | 70–160% | 100% | Row height + font size on cover (Slider, step 10%) |
+| Setting | Default | Notes |
+|---------|---------|-------|
+| Refresh interval | 5 min | 1–30 min, polling interval |
+| Cover rows | 5 | 1–10 rows visible on the cover |
+| Show timestamp | on | Last updated time at the bottom of the cover |
+| Show currency | off | e.g. `USD` suffix next to price |
+| Show price | on | Off = % only — more room for symbols |
+| Cover scale | 100% | 70–160% row height + font size |
 
-All persist in `watchlist.json` and survive restarts.
+All settings persist across restarts.
 
-## Watchlist
+## Installation
 
-- Pull-down **Add symbol** for free-text `AAPL`, `^GSPC`, `EURUSD=X`, `BTC-USD`.
-- Pull-down **Browse tickers** for a curated 45-symbol picker (indices, Tech, Helsinki .HE, ETFs, FX, Crypto, Commodities) with search + multi-select. Already in watchlist is dimmed.
+1. Download the latest RPM from the [**Releases**](https://github.com/miskahm/harbour-ticker/releases) page (aarch64).
+2. Copy it to your phone and install (File Browser / `rpm -Uvh`), or `scp` + `devel-su rpm -Uvh`.
 
-## Build
+No root daemon, no extra permissions. OpenRepos listing is planned — the GitHub Releases page is the distribution point until then.
 
-Requires the **coderus/sailfishos-platform-sdk** podman image.
+## Data
 
-> **Important:** `mb2` (sb2) can only see bind-mounts at `/home/mersdk/project`
-> inside the container.  `$PWD` maps there.
+Quotes from Yahoo Finance `v8/finance/chart` (unofficial, keyless). Only a tiny GET per symbol with a `User-Agent` header; change/percent computed locally. If Yahoo changes its API the poller can be swapped without touching the UI.
 
-```sh
-# Restore container-root ownership for host access
-podman run --rm -u root -v "$PWD":/home/mersdk/project \
-  coderus/sailfishos-platform-sdk \
-  bash -c "chown -R 100000:100000 /home/mersdk/project && rm -rf /home/mersdk/project/.mb2 /home/mersdk/project/RPMS"
+- Stocks: `AAPL` · Indexes: `^GSPC`, `^NDX`, `^DJI` · FX: `EURUSD=X` · Crypto: `BTC-USD`
+- Rate-friendly: cap 20 symbols, 5-min default, exponential backoff.
 
-# Build as the container user
-podman run --rm -v "$PWD":/home/mersdk/project -w /home/mersdk/project \
-  coderus/sailfishos-platform-sdk \
-  bash -c "mb2 -t SailfishOS-5.2.0.15-aarch64 build-init && mb2 -t SailfishOS-5.2.0.15-aarch64 build"
+## License
 
-# Restore host ownership
-podman run --rm -u root -v "$PWD":/home/mersdk/project \
-  coderus/sailfishos-platform-sdk \
-  chown -R 0:0 /home/mersdk/project
-```
+GPL-3.0-only. Icons from Sailfish.
 
-The RPM lands in `dist/` as `harbour-ticker-*.rpm`.
+## Links
 
-## Deploy
-
-```sh
-ssh user@device-ip "pkill -f bin/harbour-ticker" 2>/dev/null
-scp dist/harbour-ticker-*.rpm user@device-ip:/tmp/
-printf 'password\n' | ssh -tt user@device-ip \
-  "devel-su rpm -Uvh /tmp/harbour-ticker-*.rpm"
-```
-
-Replace `password` with the `devel-su` password for the device.
-
-## Notes
-
-- **Cover layout:** no header (freed for tickers), 30px × scale row height, `paddingSmall/Medium` margins — 10 rows fit; timestamp anchored bottom, currency toggle, price-only toggle, scale slider.
-- **Persistence:** `watchlist.json` (JSON object with `intervalMinutes`,
-  `coverRows`, `showCoverTimestamp`, `showCoverCurrency`, `showCoverPrice`, `coverScale`, `symbols[]`) and `snapshot.json` live under
-  `~/.local/share/harbour-ticker/harbour-ticker/`.
-- 429/401 responses trigger exponential backoff per symbol.
-- Distribution target: OpenRepos.
+- Issues & roadmap: GitHub Issues
+- Harbour Ticker on OpenRepos: *coming soon*
