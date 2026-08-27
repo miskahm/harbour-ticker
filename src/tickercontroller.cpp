@@ -31,7 +31,8 @@ QString dataPath(const QString &fileName)
 QString fmtPrice(double v, const QString &currency)
 {
     QLocale locale(QLocale::English);
-    QString s = locale.toString(v, 'f', 2);
+    int decimals = (v < 1.0 && v > 0.0) ? 3 : 2;
+    QString s = locale.toString(v, 'f', decimals);
     if (!currency.isEmpty())
         s += " " + currency;
     return s;

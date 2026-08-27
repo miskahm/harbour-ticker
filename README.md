@@ -12,6 +12,7 @@ No default tickers on fresh install — add your own via **Browse** (45 curated)
 - **Editable watchlist** — long-press to remove, add any Yahoo symbol (`AAPL`, `^GSPC`, `EURUSD=X`, `BTC-USD`).
 - **Browse picker** — curated 45 symbols (US/EU indices, Tech, Helsinki `.HE`, ETFs, FX, Crypto, Commodities) with search and multi-select.
 - **Live updates** — configurable refresh interval while the app is running or its cover is active; 429/401 backoff per symbol.
+- **Micro stock precision** — prices below 1.0 show 3 decimals (e.g. `0.511`), others show 2 decimals.
 
 ## Settings
 
