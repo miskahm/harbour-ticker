@@ -27,6 +27,12 @@ No default tickers on fresh install — add your own via **Browse** (45 curated)
 
 All settings persist across restarts.
 
+## Screenshots
+
+Cover on the Home screen | Main watchlist page
+:---:|:---:
+![Cover](docs/screenshots/cover.png) | ![Main page](docs/screenshots/main.png)
+
 ## Installation
 
 1. Download the latest RPM from the [**Releases**](https://github.com/miskahm/harbour-ticker/releases) page (aarch64).

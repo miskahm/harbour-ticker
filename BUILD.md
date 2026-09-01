@@ -26,9 +26,9 @@ The RPM lands in `RPMS/harbour-ticker-*.rpm`.
 ## Deploy to device
 
 ```sh
-ssh user@device-ip "pkill -f bin/harbour-ticker" 2>/dev/null
-scp RPMS/harbour-ticker-*.rpm user@device-ip:/tmp/
-printf 'password\n' | ssh -tt user@device-ip "devel-su rpm -Uvh /tmp/harbour-ticker-*.rpm"
+ssh user@<device-ip> "pkill -f bin/harbour-ticker" 2>/dev/null
+scp RPMS/harbour-ticker-*.rpm user@<device-ip>:/tmp/
+ssh -tt user@<device-ip> "devel-su rpm -Uvh /tmp/harbour-ticker-*.rpm"
 ```
 
 ## Persistence & internals
