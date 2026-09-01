@@ -1,3 +1,5 @@
+<p align="center"><img src="ticker_logo.png" width="120" alt="Ticker icon"></p>
+
 # Harbour Ticker
 
 **Live stock and index tickers on your Sailfish OS cover.**
@@ -32,10 +34,6 @@ All settings persist across restarts.
 Cover on the Home screen | Main watchlist page
 :---:|:---:
 ![Cover](docs/screenshots/cover.png) | ![Main page](docs/screenshots/main.png)
-
-## Icon
-
-![Ticker icon](ticker_logo.png)
 
 ## Installation
 
