@@ -155,6 +155,8 @@ Page {
                 font.pixelSize: Theme.fontSizeExtraSmall
             }
         }
+
+        VerticalScrollDecorator {}
     }
 
     Dialog {
@@ -192,7 +194,7 @@ Page {
 
     Dialog {
         id: rowsDialog
-        canAccept: !isNaN(parseInt(rowsField.text)) && parseInt(rowsField.text) >= 1 && parseInt(rowsField.text) <= 10
+        canAccept: !isNaN(parseInt(rowsField.text)) && parseInt(rowsField.text) >= 1 && parseInt(rowsField.text) <= 20
         onAccepted: ticker.setCoverRows(parseInt(rowsField.text))
 
         Column {
@@ -216,7 +218,7 @@ Page {
             Label {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: qsTr("How many tickers to show on the home screen cover (1–10).")
+                text: qsTr("How many tickers to show on the home screen cover (1–20).")
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeExtraSmall
             }

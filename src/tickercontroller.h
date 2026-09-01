@@ -52,6 +52,7 @@ public:
     Q_INVOKABLE void setShowCoverCurrency(bool v);
     Q_INVOKABLE void setShowCoverPrice(bool v);
     Q_INVOKABLE void setCoverScale(double v);
+    Q_INVOKABLE void setCoverActive(bool active);
     Q_INVOKABLE void setFinnhubApiKey(const QString &key);
     Q_INVOKABLE void setProviderMode(int mode);
     Q_INVOKABLE bool containsSymbol(const QString &symbol) const;
@@ -112,6 +113,8 @@ private:
     int m_cursor = 0;
     bool m_refreshing = false;
     bool m_nordicFetching = false;
+    bool m_coverActive = false;
+    bool m_foreground = true;
     int m_intervalMinutes = 5;
     int m_coverRows = 5;
     bool m_showCoverTimestamp = true;

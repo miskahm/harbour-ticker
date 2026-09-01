@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -18,7 +19,7 @@ const char *WATCHLIST_FILE = "watchlist.json";
 const char *SNAPSHOT_FILE = "snapshot.json";
 const int MAX_SYMBOLS = 20;
 const int MIN_COVER_ROWS = 1;
-const int MAX_COVER_ROWS = 10;
+const int MAX_COVER_ROWS = 20;
 const int BASE_BACKOFF_MS = 60 * 1000;
 const int MAX_BACKOFF_MS = 30 * 60 * 1000;
 
@@ -53,6 +54,12 @@ TickerController::TickerController(QObject *parent)
     m_timer->setInterval(30 * 1000);
     connect(m_timer, &QTimer::timeout, this, &TickerController::pollDue);
     m_timer->start();
+
+    connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+        m_foreground = (state == Qt::ApplicationActive);
+        if (!m_foreground && !m_coverActive)
+            qInfo() << "controller: hidden, polling paused";
+    });
 
     emitChanged();
     refresh();
@@ -259,6 +266,17 @@ void TickerController::setIntervalMinutes(int minutes)
     emit intervalMinutesChanged();
 }
 
+void TickerController::setCoverActive(bool active)
+{
+    if (active == m_coverActive)
+        return;
+    m_coverActive = active;
+    if (active)
+        qInfo() << "controller: resume, cover active" << m_foreground;
+    else
+        qInfo() << "controller: cover inactive, foreground" << m_foreground;
+}
+
 void TickerController::setCoverRows(int rows)
 {
     rows = qBound(MIN_COVER_ROWS, rows, MAX_COVER_ROWS);
@@ -356,6 +374,8 @@ bool TickerController::shouldUseFinnhub() const
 
 void TickerController::pollDue()
 {
+    if (!(m_foreground || m_coverActive))
+        return;
     const qint64 dueMs = qint64(m_intervalMinutes) * 60 * 1000 - 12000;
     if (m_lastUpdated.isEmpty()) {
         tick();

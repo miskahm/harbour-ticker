@@ -4,6 +4,11 @@ import Sailfish.Silica 1.0
 CoverBackground {
     id: cover
 
+    readonly property bool coverActive: status === Cover.Active
+    onCoverActiveChanged: ticker.setCoverActive(coverActive)
+    Component.onCompleted: ticker.setCoverActive(coverActive)
+    Component.onDestruction: ticker.setCoverActive(false)
+
     CoverActionList {
         CoverAction {
             iconSource: "image://theme/icon-m-refresh"

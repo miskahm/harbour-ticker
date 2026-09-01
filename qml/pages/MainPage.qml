@@ -118,6 +118,8 @@ Page {
                 color: Theme.secondaryColor
             }
         }
+
+        VerticalScrollDecorator {}
     }
 
     Dialog {
