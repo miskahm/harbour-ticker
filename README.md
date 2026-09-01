@@ -33,6 +33,10 @@ Cover on the Home screen | Main watchlist page
 :---:|:---:
 ![Cover](docs/screenshots/cover.png) | ![Main page](docs/screenshots/main.png)
 
+## Icon
+
+![Ticker icon](ticker_logo.png)
+
 ## Installation
 
 1. Download the latest RPM from the [**Releases**](https://github.com/miskahm/harbour-ticker/releases) page (aarch64).
